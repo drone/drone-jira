@@ -17,12 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO code to generate access key and secret
 // TODO code to generate cloud id (if not exists)
-// TODO code to extract issue number
-// TODO code to create deployment
-// TODO create environment enums
-// TODO create state enums
 
 // Args provides plugin execution arguments.
 type Args struct {
@@ -49,6 +44,9 @@ type Args struct {
 	// Deployment environment (optional)
 	Environment string `envconfig:"PLUGIN_ENVIRONMENT"`
 
+	// Link to deployment (optional)
+	Link string `envconfig:"PLUGIN_LINK"`
+
 	// State of the deployment (optional)
 	State string `envconfig:"PLUGIN_STATE"`
 }
@@ -56,10 +54,11 @@ type Args struct {
 // Exec executes the plugin.
 func Exec(ctx context.Context, args Args) error {
 	var (
-		environ = toEnvironment(args)
-		issue   = extractIssue(args)
-		state   = toState(args)
-		version = toVersion(args)
+		environ  = toEnvironment(args)
+		issue    = extractIssue(args)
+		state    = toState(args)
+		version  = toVersion(args)
+		deeplink = toLink(args)
 	)
 
 	logger := logrus.
@@ -91,14 +90,14 @@ func Exec(ctx context.Context, args Args) error {
 					},
 				},
 				Displayname: version,
-				URL:         args.Build.Link,
+				URL:         deeplink,
 				Description: args.Commit.Message,
 				Lastupdated: time.Now(),
 				State:       state,
 				Pipeline: JiraPipeline{
 					ID:          args.Commit.Author.Email,
 					Displayname: args.Commit.Author.Username,
-					URL:         args.Build.Link,
+					URL:         deeplink,
 				},
 				Environment: Environment{
 					ID:          environ,

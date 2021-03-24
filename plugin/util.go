@@ -63,6 +63,18 @@ func toVersion(args Args) string {
 	return args.Commit.Rev
 }
 
+// helper function provides a deeplink to the build
+// or a fallback link to the commit in version control.
+func toLink(args Args) string {
+	if v := args.Link; v != "" {
+		return v
+	}
+	if v := args.Build.Link; v != "" {
+		return v
+	}
+	return args.Commit.Link
+}
+
 // helper function normalizes the environment to match
 // the expected bitbucket enum.
 func toEnvironmentEnum(s string) string {
@@ -73,8 +85,10 @@ func toEnvironmentEnum(s string) string {
 		return "staging"
 	case "dev", "development":
 		return "development"
+	case "testing", "test":
+		return "testing"
 	default:
-		return s
+		return "unmapped"
 	}
 }
 
@@ -82,7 +96,19 @@ func toEnvironmentEnum(s string) string {
 // the expected bitbucket enum.
 func toStateEnum(s string) string {
 	switch strings.ToLower(s) {
+	case "pending", "waiting":
+		return "pending"
+	case "running", "in_progress":
+		return "in_progress"
+	case "cancelled", "killed", "stopped", "terminated":
+		return "cancelled"
+	case "failed", "failure", "error", "errored":
+		return "failed"
+	case "rollback", "rolled_back":
+		return "rolled_back"
+	case "success", "successful":
+		return "successful"
 	default:
-		return s
+		return "unknown"
 	}
 }
