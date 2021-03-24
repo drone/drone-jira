@@ -17,7 +17,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO code to generate cloud id (if not exists)
+// TODO(bradrydzewski) if the cloud_id is omitted we should
+// use the site_id to fetch the cloud_id.
+//
+//    curl https://droneio.atlassian.net/_edge/tenant_info
+//    {"cloudId":"b11a072e-a403-418d-a809-fbf4eb9c434b"}
 
 // Args provides plugin execution arguments.
 type Args struct {
@@ -34,6 +38,9 @@ type Args struct {
 
 	// Atlassian Oauth2 Client Secret (required)
 	ClientSecret string `envconfig:"PLUGIN_CLIENT_SECRET"`
+
+	// Site Name (optional)
+	Site string `envconfig:"PLUGIN_SITE"`
 
 	// Project Name (required)
 	Project string `envconfig:"PLUGIN_PROJECT"`
