@@ -40,7 +40,7 @@ type Args struct {
 	ClientSecret string `envconfig:"PLUGIN_CLIENT_SECRET"`
 
 	// Site Name (optional)
-	Site string `envconfig:"PLUGIN_SITE"`
+	Site string `envconfig:"PLUGIN_INSTANCE"`
 
 	// Project Name (required)
 	Project string `envconfig:"PLUGIN_PROJECT"`
@@ -66,12 +66,14 @@ func Exec(ctx context.Context, args Args) error {
 		state    = toState(args)
 		version  = toVersion(args)
 		deeplink = toLink(args)
+		instance = args.Site
 	)
 
 	logger := logrus.
 		WithField("client_id", args.ClientID).
 		WithField("cloud_id", args.CloudID).
 		WithField("project_id", args.Project).
+		WithField("instance", instance).
 		WithField("pipeline", args.Name).
 		WithField("environment", environ).
 		WithField("state", state).
@@ -115,14 +117,29 @@ func Exec(ctx context.Context, args Args) error {
 		},
 	}
 
-	logrus.Debugln("creating token")
+	if instance != "" {
+		logger.Debugln("retrieve cloud id")
+
+		tenant, err := lookupTenant(instance)
+		if err != nil {
+			logger.WithError(err).
+				Errorln("cannot retrieve cloud_id")
+			return err
+		}
+		// HACK: we should avoid mutating args
+		args.CloudID = tenant.ID
+		logger = logger.WithField("cloud_id", tenant.ID)
+		logger.Debugln("successfully retrieved cloud id")
+	}
+
+	logger.Debugln("creating token")
 	token, err := createToken(args)
 	if err != nil {
-		logrus.Debugln("cannot create token")
+		logger.Debugln("cannot create token")
 		return err
 	}
 
-	logrus.Debugln("creating deployment")
+	logger.Infoln("creating deployment")
 	return createDeployment(args, payload, token)
 }
 
@@ -184,4 +201,20 @@ func createDeployment(args Args, payload Payload, token string) error {
 		return fmt.Errorf("Error code %d", res.StatusCode)
 	}
 	return nil
+}
+
+// makes an API call to lookup the cloud ID
+func lookupTenant(tenant string) (*Tenant, error) {
+	uri := fmt.Sprintf("https://%s.atlassian.net/_edge/tenant_info", tenant)
+	res, err := http.Get(uri)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > 299 {
+		return nil, fmt.Errorf("Error code %d", res.StatusCode)
+	}
+	out := new(Tenant)
+	err = json.NewDecoder(res.Body).Decode(out)
+	return out, err
 }

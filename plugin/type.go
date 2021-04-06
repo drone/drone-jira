@@ -45,4 +45,9 @@ type (
 		Displayname string `json:"displayName"`
 		URL         string `json:"url"`
 	}
+
+	// Tenant provides the jira instance tenant details.
+	Tenant struct {
+		ID string `json:"cloudId"`
+	}
 )
