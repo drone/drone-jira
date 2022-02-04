@@ -50,4 +50,15 @@ type (
 	Tenant struct {
 		ID string `json:"cloudId"`
 	}
+
+	// struct for adaptive card
+	Card struct {
+		Pipeline    string `json:"pipeline"`
+		Instance    string `json:"instance"`
+		Project     string `json:"project"`
+		State       string `json:"state"`
+		Version     string `json:"version"`
+		Environment string `json:"environment"`
+		URL         string `json:"url"`
+	}
 )

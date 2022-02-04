@@ -1,0 +1,164 @@
+{
+	"type": "AdaptiveCard",
+	"body": [
+		{
+			"type": "ColumnSet",
+			"columns": [
+				{
+					"type": "Column",
+					"items": [
+						{
+							"type": "Image",
+							"url": "https://drone.github.io/drone-jira/jira.png",
+							"size": "small"
+						}
+					],
+					"width": "auto"
+				},
+				{
+					"type": "Column",
+					"items": [
+						{
+							"type": "TextBlock",
+							"text": "Plugin: Jira",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "Project: ${project}",
+							"wrap": true,
+							"size": "Small",
+							"weight": "Lighter",
+							"isSubtle": true,
+							"spacing": "Small"
+						}
+					],
+					"width": "stretch"
+				}
+			],
+			"style": "default"
+		},
+		{
+			"type": "ColumnSet",
+			"style": "default",
+			"separator": true,
+			"columns": [
+				{
+					"type": "Column",
+					"items": [
+						{
+							"type": "TextBlock",
+							"text": "Pipeline:",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "Environment:",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "Instance:",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "State:",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "Version:",
+							"wrap": true,
+							"size": "small",
+							"weight": "bolder",
+							"isSubtle": false,
+							"spacing": "small"
+						}
+					],
+					"width": "auto"
+				},
+				{
+					"type": "Column",
+					"items": [
+						{
+							"type": "TextBlock",
+							"text": "${pipeline}",
+							"wrap": true,
+							"size": "small",
+							"weight": "default",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "${environment}",
+							"wrap": true,
+							"size": "small",
+							"weight": "default",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "${instance}",
+							"wrap": true,
+							"size": "small",
+							"weight": "default",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "${state}",
+							"wrap": true,
+							"size": "small",
+							"weight": "default",
+							"isSubtle": false,
+							"spacing": "small"
+						},
+						{
+							"type": "TextBlock",
+							"text": "${version}",
+							"wrap": true,
+							"size": "small",
+							"weight": "default",
+							"isSubtle": false,
+							"spacing": "small"
+						}
+					],
+					"width": "auto"
+				}
+			]
+		}
+	],
+	"actions": [
+		{
+			"type": "Action.OpenUrl",
+			"title": "Open in Jira",
+			"url": "${url}"
+		}
+	],
+	"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+	"version": "1.4"
+}

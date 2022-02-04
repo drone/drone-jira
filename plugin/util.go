@@ -24,14 +24,6 @@ func extractIssue(args Args) string {
 	)
 }
 
-// helper function determines the pipeline name.
-func toPipeline(args Args) string {
-	if v := args.Name; v != "" {
-		return v
-	}
-	return args.Stage.Name
-}
-
 // helper function determines the pipeline state.
 func toState(args Args) string {
 	if v := args.State; v != "" {
@@ -42,7 +34,7 @@ func toState(args Args) string {
 
 // helper function determines the target environment.
 func toEnvironment(args Args) string {
-	if v := args.Environment; v != "" {
+	if v := args.EnvironmentName; v != "" {
 		return toEnvironmentEnum(v)
 	}
 	if v := args.Deploy.Target; v != "" {
