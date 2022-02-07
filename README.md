@@ -1,6 +1,8 @@
-A plugin to attach build and deployment details to a Jira issue.
+# drone-jira
 
-# Building
+A plugin to attach build and deployment details to a Jira issue. For information on how to use the plugin with drone there is a video [here](https://youtu.be/YIKbLeY1-gI)
+
+## Building
 
 Build the plugin binary:
 
@@ -14,7 +16,7 @@ Build the plugin image:
 docker build -t plugins/jira -f docker/Dockerfile .
 ```
 
-# Testing
+## Testing
 
 Execute the plugin from your current working directory:
 

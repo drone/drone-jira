@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -49,13 +50,16 @@ type Args struct {
 	Name string `envconfig:"PLUGIN_PIPELINE"`
 
 	// Deployment environment (optional)
-	Environment string `envconfig:"PLUGIN_ENVIRONMENT"`
+	EnvironmentName string `envconfig:"PLUGIN_ENVIRONMENT_NAME"`
 
 	// Link to deployment (optional)
 	Link string `envconfig:"PLUGIN_LINK"`
 
 	// State of the deployment (optional)
 	State string `envconfig:"PLUGIN_STATE"`
+
+	// Path to the adaptive card
+	CardFilePath string `envconfig:"DRONE_CARD_PATH"`
 }
 
 // Exec executes the plugin.
@@ -104,7 +108,7 @@ func Exec(ctx context.Context, args Args) error {
 				Lastupdated: time.Now(),
 				State:       state,
 				Pipeline: JiraPipeline{
-					ID:          args.Commit.Author.Email,
+					ID:          args.Name,
 					Displayname: args.Commit.Author.Username,
 					URL:         deeplink,
 				},
@@ -140,7 +144,27 @@ func Exec(ctx context.Context, args Args) error {
 	}
 
 	logger.Infoln("creating deployment")
-	return createDeployment(args, payload, token)
+	deploymentErr := createDeployment(args, payload, token)
+	if deploymentErr != nil {
+		logger.WithError(deploymentErr).
+			Errorln("cannot create deployment")
+		return deploymentErr
+	}
+	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", instance, issue)
+	cardData := Card{
+		Pipeline:    args.Name,
+		Instance:    instance,
+		Project:     args.Project,
+		State:       state,
+		Version:     version,
+		Environment: environ,
+		URL:         ticketLink,
+	}
+	if err := args.writeCard(cardData); err != nil {
+		fmt.Printf("Could not create adaptive card. %s\n", err)
+		return err
+	}
+	return nil
 }
 
 // makes an API call to create a token.
@@ -153,7 +177,9 @@ func createToken(args Args) (string, error) {
 	}
 	endpoint := "https://api.atlassian.com/oauth/token"
 	buf := new(bytes.Buffer)
-	json.NewEncoder(buf).Encode(payload)
+	if err := json.NewEncoder(buf).Encode(payload); err != nil {
+		return "", err
+	}
 	req, err := http.NewRequest("POST", endpoint, buf)
 	if err != nil {
 		return "", err
@@ -184,7 +210,9 @@ func createToken(args Args) (string, error) {
 func createDeployment(args Args, payload Payload, token string) error {
 	endpoint := fmt.Sprintf("https://api.atlassian.com/jira/deployments/0.1/cloud/%s/bulk", args.CloudID)
 	buf := new(bytes.Buffer)
-	json.NewEncoder(buf).Encode(payload)
+	if err := json.NewEncoder(buf).Encode(payload); err != nil {
+		return err
+	}
 	req, err := http.NewRequest("POST", endpoint, buf)
 	if err != nil {
 		return err
@@ -197,6 +225,12 @@ func createDeployment(args Args, payload Payload, token string) error {
 		return err
 	}
 	defer res.Body.Close()
+	switch args.Level {
+	case "debug", "trace", "DEBUG", "TRACE":
+		out, _ := httputil.DumpResponse(res, true)
+		outString := string(out)
+		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
+	}
 	if res.StatusCode > 299 {
 		return fmt.Errorf("Error code %d", res.StatusCode)
 	}

@@ -2,3 +2,5 @@
 release/
 drone-jira
 NOTES*
+output.json
+.vscode/
