@@ -41,3 +41,16 @@ docker run --rm \
   -v $(pwd):/drone/src \
   plugins/jira
 ```
+
+## Plugin Settings
+- `LOG_LEVEL` debug/info Level defines the plugin log level. Set this to debug to see the response from jira
+- `CLOUD_ID` Atlassian Cloud ID (required)
+- `CLIENT_ID` Atlassian Oauth2 Client ID (required)
+- `CLIENT_SECRET` Atlassian Oauth2 Client Secret (required)
+- `INSTANCE` Site Name (optional)
+- `PROJECT` Project Name (required)
+- `PIPELINE` Pipeline Name (optional)
+- `ENVIRONMENT_NAME` Deployment environment (optional)
+- `LINK` Link to deployment (optional)
+- `STATE` State of the deployment (optional)
+	
