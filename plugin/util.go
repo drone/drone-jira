@@ -18,8 +18,7 @@ func extractIssue(args Args) string {
 		fmt.Sprintln(
 			args.Commit.Message,
 			args.PullRequest.Title,
-			args.Commit.Source,
-			args.Commit.Target,
+			args.Commit.Branch,
 		),
 	)
 }
