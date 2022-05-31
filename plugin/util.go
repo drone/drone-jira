@@ -20,6 +20,7 @@ func extractIssue(args Args) string {
 			args.PullRequest.Title,
 			args.Commit.Source,
 			args.Commit.Target,
+			args.Commit.Branch,
 		),
 	)
 }

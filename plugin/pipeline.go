@@ -40,8 +40,8 @@ type Pipeline struct {
 		After   string `envconfig:"DRONE_COMMIT_AFTER"`
 		Ref     string `envconfig:"DRONE_COMMIT_REF"`
 		Branch  string `envconfig:"DRONE_COMMIT_BRANCH"`
-		Source  string `envconfig:"DRONE_COMMIT_SOURCE"`
-		Target  string `envconfig:"DRONE_COMMIT_TARGET"`
+		Source  string `envconfig:"DRONE_SOURCE_BRANCH"`
+		Target  string `envconfig:"DRONE_TARGET_BRANCH"`
 		Link    string `envconfig:"DRONE_COMMIT_LINK"`
 		Message string `envconfig:"DRONE_COMMIT_MESSAGE"`
 
