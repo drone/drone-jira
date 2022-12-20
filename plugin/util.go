@@ -25,6 +25,14 @@ func extractIssue(args Args) string {
 	)
 }
 
+// helper function determines the pipeline name.
+func toName(args Args) string {
+	if v := args.Name; v != "" {
+		return v
+	}
+	return args.Commit.Author.Username
+}
+
 // helper function determines the pipeline state.
 func toState(args Args) string {
 	if v := args.State; v != "" {

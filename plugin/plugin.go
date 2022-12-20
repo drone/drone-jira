@@ -70,6 +70,7 @@ func Exec(ctx context.Context, args Args) error {
 		state    = toState(args)
 		version  = toVersion(args)
 		deeplink = toLink(args)
+		pipelineName = toName(args)
 		instance = args.Site
 	)
 
@@ -78,7 +79,7 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("cloud_id", args.CloudID).
 		WithField("project_id", args.Project).
 		WithField("instance", instance).
-		WithField("pipeline", args.Name).
+		WithField("pipeline", pipelineName).
 		WithField("environment", environ).
 		WithField("state", state).
 		WithField("version", version)
@@ -108,8 +109,8 @@ func Exec(ctx context.Context, args Args) error {
 				Lastupdated: time.Now(),
 				State:       state,
 				Pipeline: JiraPipeline{
-					ID:          args.Name,
-					Displayname: args.Commit.Author.Username,
+					ID:          pipelineName,
+					Displayname: pipelineName,
 					URL:         deeplink,
 				},
 				Environment: Environment{
@@ -152,7 +153,7 @@ func Exec(ctx context.Context, args Args) error {
 	}
 	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", instance, issue)
 	cardData := Card{
-		Pipeline:    args.Name,
+		Pipeline:    pipelineName,
 		Instance:    instance,
 		Project:     args.Project,
 		State:       state,
