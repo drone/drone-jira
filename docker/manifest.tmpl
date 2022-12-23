@@ -17,15 +17,3 @@ manifests:
       variant: v8
       architecture: arm64
       os: linux
-  -
-    image: plugins/jira:{{#if build.tag}}{{trimPrefix "v" build.tag}}-{{/if}}linux-arm
-    platform:
-      variant: v7
-      architecture: arm
-      os: linux
-  -
-    image: plugins/jira:{{#if build.tag}}{{trimPrefix "v" build.tag}}-{{/if}}linux-arm
-    platform:
-      variant: v6
-      architecture: arm
-      os: linux
