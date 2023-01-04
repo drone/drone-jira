@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/drone/drone-go/drone"
@@ -28,14 +27,14 @@ func writeCard(path string, card interface{}) {
 	case path == "/dev/stderr":
 		writeCardTo(os.Stderr, data)
 	case path != "":
-		ioutil.WriteFile(path, data, 0644)
+		_ = os.WriteFile(path, data, 0644)
 	}
 }
 
 func writeCardTo(out io.Writer, data []byte) {
 	encoded := base64.StdEncoding.EncodeToString(data)
-	io.WriteString(out, "\u001B]1338;")
-	io.WriteString(out, encoded)
-	io.WriteString(out, "\u001B]0m")
-	io.WriteString(out, "\n")
+	_, _ = io.WriteString(out, "\u001B]1338;")
+	_, _ = io.WriteString(out, encoded)
+	_, _ = io.WriteString(out, "\u001B]0m")
+	_, _ = io.WriteString(out, "\n")
 }

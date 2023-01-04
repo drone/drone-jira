@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"time"
@@ -191,7 +191,7 @@ func createToken(args Args) (string, error) {
 	}
 	defer res.Body.Close()
 
-	out, err := ioutil.ReadAll(res.Body)
+	out, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
 	}
