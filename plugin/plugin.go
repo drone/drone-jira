@@ -18,12 +18,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO(bradrydzewski) if the cloud_id is omitted we should
-// use the site_id to fetch the cloud_id.
-//
-//    curl https://droneio.atlassian.net/_edge/tenant_info
-//    {"cloudId":"b11a072e-a403-418d-a809-fbf4eb9c434b"}
-
 // Args provides plugin execution arguments.
 type Args struct {
 	Pipeline
@@ -34,19 +28,13 @@ type Args struct {
 	// Atlassian Cloud ID (required)
 	CloudID string `envconfig:"PLUGIN_CLOUD_ID"`
 
-	// Atlassian Oauth2 Client ID (required)
-	ClientID string `envconfig:"PLUGIN_CLIENT_ID"`
-
-	// Atlassian Oauth2 Client Secret (required)
-	ClientSecret string `envconfig:"PLUGIN_CLIENT_SECRET"`
-
-	// Site Name (optional)
-	Site string `envconfig:"PLUGIN_INSTANCE"`
+	// Instance Name (optional)
+	Instance string `envconfig:"PLUGIN_INSTANCE"`
 
 	// Project Name (required)
 	Project string `envconfig:"PLUGIN_PROJECT"`
 
-	// Pipeline Name (optional)
+	// Pipeline Name (required)
 	Name string `envconfig:"PLUGIN_PIPELINE"`
 
 	// Deployment environment (optional)
@@ -60,6 +48,19 @@ type Args struct {
 
 	// Path to the adaptive card
 	CardFilePath string `envconfig:"DRONE_CARD_PATH"`
+
+	// AUTHENTICATION
+	// Atlassian Oauth Client ID (required)
+	ClientID string `envconfig:"PLUGIN_CLIENT_ID"`
+
+	// Atlassian Oauth2 Client Secret (required)
+	ClientSecret string `envconfig:"PLUGIN_CLIENT_SECRET"`
+
+	// Connect KEY (required) - if client id and secret are not provided
+	ConnnectKey string `envconfig:"PLUGIN_CONNECT_KEY"`
+
+	// connect hostname (required)
+	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
 }
 
 // Exec executes the plugin.
@@ -70,14 +71,13 @@ func Exec(ctx context.Context, args Args) error {
 		state    = toState(args)
 		version  = toVersion(args)
 		deeplink = toLink(args)
-		instance = args.Site
 	)
 
 	logger := logrus.
 		WithField("client_id", args.ClientID).
 		WithField("cloud_id", args.CloudID).
 		WithField("project_id", args.Project).
-		WithField("instance", instance).
+		WithField("instance", args.Instance).
 		WithField("pipeline", args.Name).
 		WithField("environment", environ).
 		WithField("state", state).
@@ -120,40 +120,52 @@ func Exec(ctx context.Context, args Args) error {
 			},
 		},
 	}
-
-	if instance != "" {
-		logger.Debugln("retrieve cloud id")
-
-		tenant, err := lookupTenant(instance)
+	// validation of arguments
+	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "" && args.ConnectHostname == "") {
+		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
+		return errors.New("No client id & secret or connect token & hostname provided")
+	}
+	// create tokens and deployments
+	if args.ClientID != "" && args.ClientSecret != "" {
+		// get cloud id
+		cloudID, err := getCloudID(args.Instance, args.CloudID)
 		if err != nil {
-			logger.WithError(err).
-				Errorln("cannot retrieve cloud_id")
+			logger.Debugln("cannot get cloud id")
 			return err
 		}
-		// HACK: we should avoid mutating args
-		args.CloudID = tenant.ID
-		logger = logger.WithField("cloud_id", tenant.ID)
-		logger.Debugln("successfully retrieved cloud id")
+		logger.Debugln("creating oauth token for deployment")
+		oauthToken, err := getOauthToken(args)
+		if err != nil {
+			logger.Debugln("cannot create token, from client id and secret")
+			return err
+		}
+		logger.Infoln("creating deployment")
+		deploymentErr := createDeployment(payload, cloudID, args.Level, oauthToken)
+		if deploymentErr != nil {
+			logger.WithError(deploymentErr).
+				Errorln("cannot create deployment")
+			return deploymentErr
+		}
+	} else {
+		logger.Debugln("creating jwt token from connect key")
+		jwtToken, err := getConnectToken(args.ConnnectKey, args.ConnectHostname)
+		if err != nil {
+			logger.Debugln("cannot get jwt token, from connect key")
+			return err
+		}
+		logger.Infoln("creating deployment")
+		deploymentErr := createConnectDeployment(payload, args.Instance, args.Level, jwtToken)
+		if deploymentErr != nil {
+			logger.WithError(deploymentErr).
+				Errorln("cannot create deployment")
+			return deploymentErr
+		}
 	}
-
-	logger.Debugln("creating token")
-	token, err := createToken(args)
-	if err != nil {
-		logger.Debugln("cannot create token")
-		return err
-	}
-
-	logger.Infoln("creating deployment")
-	deploymentErr := createDeployment(args, payload, token)
-	if deploymentErr != nil {
-		logger.WithError(deploymentErr).
-			Errorln("cannot create deployment")
-		return deploymentErr
-	}
-	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", instance, issue)
+	// only create card if the state is successful
+	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
 	cardData := Card{
 		Pipeline:    args.Name,
-		Instance:    instance,
+		Instance:    args.Instance,
 		Project:     args.Project,
 		State:       state,
 		Version:     version,
@@ -168,7 +180,7 @@ func Exec(ctx context.Context, args Args) error {
 }
 
 // makes an API call to create a token.
-func createToken(args Args) (string, error) {
+func getOauthToken(args Args) (string, error) {
 	payload := map[string]string{
 		"audience":      "api.atlassian.com",
 		"grant_type":    "client_credentials",
@@ -206,9 +218,26 @@ func createToken(args Args) (string, error) {
 	return output["access_token"].(string), nil
 }
 
+func getConnectToken(connectToken, connectURL string) (token string, err error) {
+	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/token", connectURL), nil)
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", connectToken))
+
+	res, httpErr := http.DefaultClient.Do(req)
+	if httpErr != nil {
+		return "", httpErr
+	}
+
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	// strip characters from the response
+	jwtString := string(body)
+	return jwtString, nil
+}
+
 // makes an API call to create a deployment.
-func createDeployment(args Args, payload Payload, token string) error {
-	endpoint := fmt.Sprintf("https://api.atlassian.com/jira/deployments/0.1/cloud/%s/bulk", args.CloudID)
+func createDeployment(payload Payload, cloudID, debug, oauthToken string) error {
+	endpoint := fmt.Sprintf("https://api.atlassian.com/jira/deployments/0.1/cloud/%s/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
 		return err
@@ -218,14 +247,14 @@ func createDeployment(args Args, payload Payload, token string) error {
 		return err
 	}
 	req.Header.Set("From", "noreply@localhost")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+oauthToken)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
-	switch args.Level {
+	switch debug {
 	case "debug", "trace", "DEBUG", "TRACE":
 		out, _ := httputil.DumpResponse(res, true)
 		outString := string(out)
@@ -235,6 +264,51 @@ func createDeployment(args Args, payload Payload, token string) error {
 		return fmt.Errorf("Error code %d", res.StatusCode)
 	}
 	return nil
+}
+
+// makes an API call to create a deployment.
+func createConnectDeployment(payload Payload, cloudID, debug, jwtToken string) error {
+	endpoint := fmt.Sprintf("https://%s.atlassian.net/rest/deployments/0.1/bulk", cloudID)
+	buf := new(bytes.Buffer)
+	if err := json.NewEncoder(buf).Encode(payload); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", endpoint, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("From", "noreply@localhost")
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	switch debug {
+	case "debug", "trace", "DEBUG", "TRACE":
+		out, _ := httputil.DumpResponse(res, true)
+		outString := string(out)
+		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
+	}
+	if res.StatusCode > 299 {
+		return fmt.Errorf("Error code %d", res.StatusCode)
+	}
+	return nil
+}
+func getCloudID(instance, cloudID string) (string, error) {
+	if instance != "" {
+
+		tenant, err := lookupTenant(instance)
+		if err != nil {
+			return "", fmt.Errorf("Cannot get cloudid from instance, %s", err)
+		}
+		return tenant.ID, nil
+	}
+	if cloudID == "" {
+		return "", fmt.Errorf("cloud id is empty. specify the cloud id or instance name")
+	}
+	return cloudID, nil
 }
 
 // makes an API call to lookup the cloud ID
