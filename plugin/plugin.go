@@ -18,6 +18,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	// DefaultConnectHostname is the default connect hostname
+	DefaultConnectHostname = "connect.atlassian.com"
+)
+
 // Args provides plugin execution arguments.
 type Args struct {
 	Pipeline
@@ -91,7 +96,7 @@ func Exec(ctx context.Context, args Args) error {
 	logger = logger.WithField("issue", issue)
 	logger.Debugln("successfully extraced issue number")
 
-	payload := Payload{
+	deploymentPayload := DeploymentPayload{
 		Deployments: []*Deployment{
 			{
 				Deploymentsequencenumber: args.Build.Number,
@@ -120,8 +125,24 @@ func Exec(ctx context.Context, args Args) error {
 			},
 		},
 	}
+	buildPayload := BuildPayload{
+		Builds: []*Build{
+			{
+				BuildNumber:          args.Build.Number,
+				Description:          args.Commit.Message,
+				DisplayName:          version,
+				URL:                  deeplink,
+				LastUpdated:          time.Now(),
+				PipelineID:           args.Name,
+				IssueKeys:            []string{issue},
+				State:                state,
+				UpdateSequenceNumber: args.Build.Number,
+			},
+		},
+	}
+
 	// validation of arguments
-	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "" && args.ConnectHostname == "") {
+	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
 		return errors.New("No client id & secret or connect token & hostname provided")
 	}
@@ -140,25 +161,39 @@ func Exec(ctx context.Context, args Args) error {
 			return err
 		}
 		logger.Infoln("creating deployment")
-		deploymentErr := createDeployment(payload, cloudID, args.Level, oauthToken)
+		deploymentErr := createDeployment(deploymentPayload, cloudID, args.Level, oauthToken)
 		if deploymentErr != nil {
 			logger.WithError(deploymentErr).
 				Errorln("cannot create deployment")
 			return deploymentErr
 		}
 	} else {
+		// set default connect hostname
+		if args.ConnectHostname == "" {
+			args.ConnectHostname = DefaultConnectHostname
+		}
 		logger.Debugln("creating jwt token from connect key")
 		jwtToken, err := getConnectToken(args.ConnnectKey, args.ConnectHostname)
 		if err != nil {
 			logger.Debugln("cannot get jwt token, from connect key")
 			return err
 		}
-		logger.Infoln("creating deployment")
-		deploymentErr := createConnectDeployment(payload, args.Instance, args.Level, jwtToken)
-		if deploymentErr != nil {
-			logger.WithError(deploymentErr).
-				Errorln("cannot create deployment")
-			return deploymentErr
+		if args.EnvironmentName != "" {
+			logger.Infoln("creating deployment")
+			deploymentErr := createConnectDeployment(deploymentPayload, args.Instance, args.Level, jwtToken)
+			if deploymentErr != nil {
+				logger.WithError(deploymentErr).
+					Errorln("cannot create deployment")
+				return deploymentErr
+			}
+		} else {
+			logger.Infoln("creating build")
+			buildErr := createConnectBuild(buildPayload, args.Instance, args.Level, jwtToken)
+			if buildErr != nil {
+				logger.WithError(buildErr).
+					Errorln("cannot create build")
+				return buildErr
+			}
 		}
 	}
 	// only create card if the state is successful
@@ -236,7 +271,7 @@ func getConnectToken(connectToken, connectURL string) (token string, err error) 
 }
 
 // makes an API call to create a deployment.
-func createDeployment(payload Payload, cloudID, debug, oauthToken string) error {
+func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken string) error {
 	endpoint := fmt.Sprintf("https://api.atlassian.com/jira/deployments/0.1/cloud/%s/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
@@ -267,7 +302,7 @@ func createDeployment(payload Payload, cloudID, debug, oauthToken string) error 
 }
 
 // makes an API call to create a deployment.
-func createConnectDeployment(payload Payload, cloudID, debug, jwtToken string) error {
+func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken string) error {
 	endpoint := fmt.Sprintf("https://%s.atlassian.net/rest/deployments/0.1/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
@@ -296,6 +331,38 @@ func createConnectDeployment(payload Payload, cloudID, debug, jwtToken string) e
 	}
 	return nil
 }
+
+// makes an API call to create a build.
+func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) error {
+	endpoint := fmt.Sprintf("https://%s.atlassian.net/rest/builds/0.1/bulk", cloudID)
+	buf := new(bytes.Buffer)
+	if err := json.NewEncoder(buf).Encode(payload); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", endpoint, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("From", "noreply@localhost")
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	switch debug {
+	case "debug", "trace", "DEBUG", "TRACE":
+		out, _ := httputil.DumpResponse(res, true)
+		outString := string(out)
+		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
+	}
+	if res.StatusCode > 299 {
+		return fmt.Errorf("Error code %d", res.StatusCode)
+	}
+	return nil
+}
+
 func getCloudID(instance, cloudID string) (string, error) {
 	if instance != "" {
 
