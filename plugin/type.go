@@ -7,9 +7,42 @@ package plugin
 import "time"
 
 type (
-	// Payload provides the Deployment payload.
-	Payload struct {
+	BuildPayload struct {
+		Builds []*Build `json:"builds"`
+	}
+	DeploymentPayload struct {
 		Deployments []*Deployment `json:"deployments"`
+	}
+
+	// build provides the build details.
+	Build struct {
+		BuildNumber int       `json:"buildNumber"`
+		Description string    `json:"description"`
+		DisplayName string    `json:"displayName"`
+		IssueKeys   []string  `json:"issueKeys"`
+		Label       string    `json:"label"`
+		LastUpdated time.Time `json:"lastUpdated"`
+		PipelineID  string    `json:"pipelineId"`
+		References  []struct {
+			Commit struct {
+				ID            string `json:"id"`
+				RepositoryURI string `json:"repositoryUri"`
+			} `json:"commit"`
+			Ref struct {
+				Name string `json:"name"`
+				URI  string `json:"uri"`
+			} `json:"ref"`
+		} `json:"references"`
+		SchemaVersion string `json:"schemaVersion"`
+		State         string `json:"state"`
+		TestInfo      struct {
+			NumberFailed  int64 `json:"numberFailed"`
+			NumberPassed  int64 `json:"numberPassed"`
+			NumberSkipped int64 `json:"numberSkipped"`
+			TotalNumber   int64 `json:"totalNumber"`
+		} `json:"testInfo"`
+		UpdateSequenceNumber int    `json:"updateSequenceNumber"`
+		URL                  string `json:"url"`
 	}
 
 	// Deployment provides the Deployment details.
