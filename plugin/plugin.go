@@ -20,7 +20,7 @@ import (
 
 const (
 	// DefaultConnectHostname is the default connect hostname
-	DefaultConnectHostname = "connect.atlassian.com"
+	DefaultConnectHostname = "jira.ci.harness.io"
 )
 
 // Args provides plugin execution arguments.
@@ -130,7 +130,7 @@ func Exec(ctx context.Context, args Args) error {
 			{
 				BuildNumber:          args.Build.Number,
 				Description:          args.Commit.Message,
-				DisplayName:          version,
+				DisplayName:          args.Name,
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
 				PipelineID:           args.Name,
