@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -107,14 +108,14 @@ func Exec(ctx context.Context, args Args) error {
 						Values:          []string{issue},
 					},
 				},
-				Displayname: version,
+				Displayname: strconv.Itoa(args.Build.Number),
 				URL:         deeplink,
 				Description: args.Commit.Message,
 				Lastupdated: time.Now(),
 				State:       state,
 				Pipeline: JiraPipeline{
 					ID:          args.Name,
-					Displayname: args.Commit.Author.Username,
+					Displayname: args.Name,
 					URL:         deeplink,
 				},
 				Environment: Environment{
