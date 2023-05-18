@@ -5,7 +5,6 @@
 package plugin
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -13,16 +12,17 @@ import (
 // helper function to extract the issue number from
 // the commit details, including the commit message,
 // branch and pull request title.
-func extractIssue(args Args) string {
-	return regexp.MustCompile(args.Project + "\\-\\d+").FindString(
-		fmt.Sprintln(
-			args.Commit.Message,
-			args.PullRequest.Title,
-			args.Commit.Source,
-			args.Commit.Target,
-			args.Commit.Branch,
-		),
-	)
+func extractIssue(args Args) []string {
+	projects := strings.Split(args.Project, " ")
+	var matches []string
+	
+	for _, project := range projects {
+		re := regexp.MustCompile(project + "\\-\\d+")
+		if submatches := re.FindAllString(args.Commit.Message, -1); submatches != nil {
+			matches = append(matches, submatches...)
+		}
+	}
+	return matches
 }
 
 // helper function determines the pipeline state.

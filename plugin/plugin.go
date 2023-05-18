@@ -89,7 +89,7 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("state", state).
 		WithField("version", version)
 
-	if issue == "" {
+	if len(issue) == 0 {
 		logger.Debugln("cannot find issue number")
 		return errors.New("failed to extract issue number")
 	}
@@ -105,7 +105,7 @@ func Exec(ctx context.Context, args Args) error {
 				Associations: []Association{
 					{
 						Associationtype: "issueIdOrKeys",
-						Values:          []string{issue},
+						Values:          issue,
 					},
 				},
 				Displayname: strconv.Itoa(args.Build.Number),
@@ -135,7 +135,7 @@ func Exec(ctx context.Context, args Args) error {
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
 				PipelineID:           args.Name,
-				IssueKeys:            []string{issue},
+				IssueKeys:            issue,
 				State:                state,
 				UpdateSequenceNumber: args.Build.Number,
 			},
