@@ -14,7 +14,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"time"
+
+	jira "github.com/andygrunwald/go-jira/v2/cloud"
 
 	"github.com/sirupsen/logrus"
 )
@@ -161,8 +164,20 @@ func Exec(ctx context.Context, args Args) error {
 			logger.Debugln("cannot create token, from client id and secret")
 			return err
 		}
+		authTransport := &AuthTransport{Token: oauthToken}
+		closed, err := isJiraIssueClosed(ctx, authTransport, cloudID, issue)
+		if err != nil {
+			logger.WithError(err).
+				Errorln("cannot check if issue is closed")
+			return err
+		}
+
+		if closed {
+			return fmt.Errorf("issue: %s is closed", issue)
+		}
+
 		logger.Infoln("creating deployment")
-		deploymentErr := createDeployment(deploymentPayload, cloudID, args.Level, oauthToken)
+		deploymentErr := createDeployment(deploymentPayload, authTransport, cloudID, args.Level)
 		if deploymentErr != nil {
 			logger.WithError(deploymentErr).
 				Errorln("cannot create deployment")
@@ -179,9 +194,22 @@ func Exec(ctx context.Context, args Args) error {
 			logger.Debugln("cannot get jwt token, from connect key")
 			return err
 		}
+
+		authTransport := &AuthTransport{Token: jwtToken}
+		closed, err := isJiraIssueClosed(ctx, authTransport, args.Instance, issue)
+		if err != nil {
+			logger.WithError(err).
+				Errorln("cannot check if issue is closed")
+			return err
+		}
+
+		if closed {
+			return fmt.Errorf("issue: %s is closed", issue)
+		}
+
 		if args.EnvironmentName != "" {
 			logger.Infoln("creating deployment")
-			deploymentErr := createConnectDeployment(deploymentPayload, args.Instance, args.Level, jwtToken)
+			deploymentErr := createConnectDeployment(deploymentPayload, authTransport, args.Instance, args.Level)
 			if deploymentErr != nil {
 				logger.WithError(deploymentErr).
 					Errorln("cannot create deployment")
@@ -189,7 +217,7 @@ func Exec(ctx context.Context, args Args) error {
 			}
 		} else {
 			logger.Infoln("creating build")
-			buildErr := createConnectBuild(buildPayload, args.Instance, args.Level, jwtToken)
+			buildErr := createConnectBuild(buildPayload, authTransport, args.Instance, args.Level)
 			if buildErr != nil {
 				logger.WithError(buildErr).
 					Errorln("cannot create build")
@@ -272,7 +300,7 @@ func getConnectToken(connectToken, connectURL string) (token string, err error) 
 }
 
 // makes an API call to create a deployment.
-func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken string) error {
+func createDeployment(payload DeploymentPayload, authTransport *AuthTransport, cloudID, debug string) error {
 	endpoint := fmt.Sprintf("https://api.atlassian.com/jira/deployments/0.1/cloud/%s/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
@@ -282,10 +310,7 @@ func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken stri
 	if err != nil {
 		return err
 	}
-	req.Header.Set("From", "noreply@localhost")
-	req.Header.Set("Authorization", "Bearer "+oauthToken)
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := authTransport.Client().Do(req)
 	if err != nil {
 		return err
 	}
@@ -303,7 +328,7 @@ func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken stri
 }
 
 // makes an API call to create a deployment.
-func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken string) error {
+func createConnectDeployment(payload DeploymentPayload, authTransport *AuthTransport, cloudID, debug string) error {
 	endpoint := fmt.Sprintf("https://%s.atlassian.net/rest/deployments/0.1/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
@@ -313,10 +338,7 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 	if err != nil {
 		return err
 	}
-	req.Header.Set("From", "noreply@localhost")
-	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := authTransport.Client().Do(req)
 	if err != nil {
 		return err
 	}
@@ -334,7 +356,7 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 }
 
 // makes an API call to create a build.
-func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) error {
+func createConnectBuild(payload BuildPayload, authTransport *AuthTransport, cloudID, debug string) error {
 	endpoint := fmt.Sprintf("https://%s.atlassian.net/rest/builds/0.1/bulk", cloudID)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(payload); err != nil {
@@ -344,10 +366,7 @@ func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) e
 	if err != nil {
 		return err
 	}
-	req.Header.Set("From", "noreply@localhost")
-	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := authTransport.Client().Do(req)
 	if err != nil {
 		return err
 	}
@@ -393,4 +412,38 @@ func lookupTenant(tenant string) (*Tenant, error) {
 	out := new(Tenant)
 	err = json.NewDecoder(res.Body).Decode(out)
 	return out, err
+}
+
+func isJiraIssueClosed(ctx context.Context, authTransport *AuthTransport, cloudID, issueID string) (bool, error) {
+
+	logger := logrus.WithField("issueID", issueID)
+	endpoint := fmt.Sprintf("https://%s.atlassian.net/", cloudID)
+
+	jiraClient, err := jira.NewClient(endpoint, authTransport.Client())
+	if err != nil {
+		logger.WithError(err).
+			Errorln("cannot connect to jira.")
+		return true, err
+	}
+
+	issue, resp, err := jiraClient.Issue.Get(ctx, issueID, nil)
+	if err != nil {
+		fmt.Println(resp.Status)
+		logger.WithError(err).
+			Errorln("cannot get issue")
+		return true, err
+	}
+
+	if issue.Fields.Status == nil {
+		logger.Debug("no status found on issue")
+		return true, nil
+	}
+
+	if strings.ToUpper(issue.Fields.Status.Name) == "CLOSED" {
+		logger.Debug("issue is closed")
+		return true, nil
+	}
+
+	logger.Debug("issue is not closed it is in state", issue.Fields.Status.Name)
+	return false, nil
 }
