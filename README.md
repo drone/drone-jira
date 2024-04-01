@@ -2,6 +2,8 @@
 
 A plugin to attach build and deployment details to a Jira issue. For information on how to use the plugin with drone there is a video [here](https://youtu.be/YIKbLeY1-gI)
 
+This plugin was modified to extract multiple issues by changing the extractIssues function and slight changes to the file plugin.go, also was added a new argument AdditionalMessage to serve as an input variable.
+
 ## Building
 
 Build the plugin binary:
