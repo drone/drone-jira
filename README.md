@@ -2,8 +2,9 @@
 
 A plugin to attach build and deployment details to a Jira issue. For information on how to use the plugin with drone there is a video [here](https://youtu.be/YIKbLeY1-gI)
 
-This plugin was modified to extract multiple issues by changing the extractIssues function and slight changes to the file plugin.go, also was added a new argument AdditionalMessage to serve as an input variable.
-Changed the util_test.go file to suit the modifications.
+This plugin was modified to extract multiple issues by changing the extractIssues function and slight changes to the file plugin.go, also was added a new argument AdditionalMessage to serve as an input variable. The AdditionalMessage variable has the purpose to contain information of other issues.
+
+The util_test.go file was changed to suit the modifications.
 
 ## Building
 
@@ -40,6 +41,7 @@ docker run --rm \
   -e PLUGIN_PIPELINE=drone \
   -e PLUGIN_ENVIRONMENT=production \
   -e PLUGIN_STATE=successful \
+  -e PLUGIN_ADDITIONAL_MESSAGE="DRONE-43 updated the plugin" \
   -w /drone/src \
   -v $(pwd):/drone/src \
   plugins/jira
@@ -56,4 +58,4 @@ docker run --rm \
 - `ENVIRONMENT_NAME` Deployment environment (optional)
 - `LINK` Link to deployment (optional)
 - `STATE` State of the deployment (optional)
-	
+- `ADDITIONAL_MESSAGE` Additional message containing information about other issues (optional)

@@ -45,15 +45,15 @@ func TestExtractIssues(t *testing.T) {
         },
         {
             text: "Multiple issues: TEST-123, TEST-234, TEST-456",
-            want: []string{"TEST-123"},
+            want: []string{"TEST-123", "TEST-234", "TEST-456"},
         },
         {
             text: "feature/TEST-123 [TEST-456] and [TEST-789]",
-            want: []string{"TEST-123"},
+            want: []string{"TEST-123", "TEST-456", "TEST-789"},
         },
         {
             text: "TEST-123 TEST-456 TEST-789",
-            want: []string{"TEST-123"},
+            want: []string{"TEST-123", "TEST-789"},
         },
         {
             text: "no issue",
