@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -67,13 +68,15 @@ type Args struct {
 
 	// connect hostname (required)
 	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
+
+	AdditionalMessage string `envconfig:"PLUGIN_ADDITIONAL_MESSAGE"`
 }
 
 // Exec executes the plugin.
 func Exec(ctx context.Context, args Args) error {
 	var (
 		environ  = toEnvironment(args)
-		issue    = extractIssue(args)
+		issues   = extractIssues(args)
 		state    = toState(args)
 		version  = toVersion(args)
 		deeplink = toLink(args)
@@ -89,13 +92,14 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("state", state).
 		WithField("version", version)
 
-	if issue == "" {
-		logger.Debugln("cannot find issue number")
-		return errors.New("failed to extract issue number")
+	if len(issues) == 0 {
+		logger.Debugln("cannot find issues")
+		return errors.New("failed to extract issues")
 	}
 
-	logger = logger.WithField("issue", issue)
-	logger.Debugln("successfully extraced issue number")
+	issues = removeDuplicates(issues)
+	logger = logger.WithField("issues", strings.Join(issues, ","))
+	logger.Debugln("successfully extracted all issues")
 
 	deploymentPayload := DeploymentPayload{
 		Deployments: []*Deployment{
@@ -105,7 +109,7 @@ func Exec(ctx context.Context, args Args) error {
 				Associations: []Association{
 					{
 						Associationtype: "issueIdOrKeys",
-						Values:          []string{issue},
+						Values:          issues,
 					},
 				},
 				Displayname: strconv.Itoa(args.Build.Number),
@@ -135,7 +139,7 @@ func Exec(ctx context.Context, args Args) error {
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
 				PipelineID:           args.Name,
-				IssueKeys:            []string{issue},
+				IssueKeys:            issues,
 				State:                state,
 				UpdateSequenceNumber: args.Build.Number,
 			},
@@ -198,7 +202,7 @@ func Exec(ctx context.Context, args Args) error {
 		}
 	}
 	// only create card if the state is successful
-	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
+	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issues)
 	cardData := Card{
 		Pipeline:    args.Name,
 		Instance:    args.Instance,
@@ -394,3 +398,21 @@ func lookupTenant(tenant string) (*Tenant, error) {
 	err = json.NewDecoder(res.Body).Decode(out)
 	return out, err
 }
+
+func removeDuplicates(list []string) []string {
+	// Create an empty map to store seen elements
+	seen := make(map[string]bool)
+	
+	// Initialize a new list to store unique elements
+	uniqueList := []string{}
+	
+	for _, element := range list {
+	  // Check if the element is already seen
+	  if !seen[element] {
+		seen[element] = true
+		uniqueList = append(uniqueList, element)
+	  }
+	}
+	
+	return uniqueList
+  }
