@@ -94,6 +94,12 @@ func Exec(ctx context.Context, args Args) error {
 		return errors.New("failed to extract issue number")
 	}
 
+	commitMessage := args.Commit.Message
+    	if len(commitMessage) > 255 {
+        	logger.Warnln("Commit message exceeds 255 characters; truncating to fit.")
+        	commitMessage = commitMessage[:252] + "..."
+    	}
+
 	logger = logger.WithField("issue", issue)
 	logger.Debugln("successfully extraced issue number")
 
@@ -110,7 +116,7 @@ func Exec(ctx context.Context, args Args) error {
 				},
 				Displayname: strconv.Itoa(args.Build.Number),
 				URL:         deeplink,
-				Description: args.Commit.Message,
+				Description: commitMessage,
 				Lastupdated: time.Now(),
 				State:       state,
 				Pipeline: JiraPipeline{
@@ -130,7 +136,7 @@ func Exec(ctx context.Context, args Args) error {
 		Builds: []*Build{
 			{
 				BuildNumber:          args.Build.Number,
-				Description:          args.Commit.Message,
+				Description:          commitMessage,
 				DisplayName:          args.Name,
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
