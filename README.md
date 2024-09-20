@@ -53,5 +53,4 @@ docker run --rm \
 - `ENVIRONMENT_NAME` Deployment environment (optional)
 - `LINK` Link to deployment (optional)
 - `STATE` State of the deployment (optional)
-	
-.
+	.
