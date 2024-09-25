@@ -1,97 +1,97 @@
-kind: pipeline
-type: vm
-name: testing
+# kind: pipeline
+# type: vm
+# name: testing
 
-platform:
-  os: linux
-  arch: amd64
+# platform:
+#   os: linux
+#   arch: amd64
 
-pool:
-  use: ubuntu
+# pool:
+#   use: ubuntu
 
-steps:
-  - name: build
-    image: golang
-    commands:
-      - go test ./...
+# steps:
+#   - name: build
+#     image: golang
+#     commands:
+#       - go test ./...
 
----
+# ---
 
-kind: pipeline
-type: vm
-name: linux-amd64
+# kind: pipeline
+# type: vm
+# name: linux-amd64
 
-platform:
-  os: linux
-  arch: amd64
+# platform:
+#   os: linux
+#   arch: amd64
 
-pool:
-  use: ubuntu
+# pool:
+#   use: ubuntu
 
-steps:
-  - name: build
-    image: golang
-    commands:
-      - sh scripts/build.sh
-  - name: publish
-    image: plugins/docker
-    settings:
-      repo: plugins/jira
-      auto_tag: true
-      auto_tag_suffix: linux-amd64
-      dockerfile: docker/Dockerfile
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-  - name: publish_arm64
-    image: plugins/docker
-    settings:
-      repo: plugins/jira
-      auto_tag: true
-      auto_tag_suffix: linux-arm64
-      dockerfile: docker/Dockerfile.linux.arm64
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
+# steps:
+#   - name: build
+#     image: golang
+#     commands:
+#       - sh scripts/build.sh
+#   - name: publish
+#     image: plugins/docker
+#     settings:
+#       repo: plugins/jira
+#       auto_tag: true
+#       auto_tag_suffix: linux-amd64
+#       dockerfile: docker/Dockerfile
+#       username:
+#         from_secret: docker_username
+#       password:
+#         from_secret: docker_password
+#   - name: publish_arm64
+#     image: plugins/docker
+#     settings:
+#       repo: plugins/jira
+#       auto_tag: true
+#       auto_tag_suffix: linux-arm64
+#       dockerfile: docker/Dockerfile.linux.arm64
+#       username:
+#         from_secret: docker_username
+#       password:
+#         from_secret: docker_password
 
-depends_on:
-  - testing
+# depends_on:
+#   - testing
 
-trigger:
-  ref:
-    - refs/heads/master
-    - refs/tags/*
+# trigger:
+#   ref:
+#     - refs/heads/master
+#     - refs/tags/*
 
----
-kind: pipeline
-type: vm
-name: manifest
+# ---
+# kind: pipeline
+# type: vm
+# name: manifest
 
-platform:
-  os: linux
-  arch: amd64
+# platform:
+#   os: linux
+#   arch: amd64
 
-pool:
-  use: ubuntu
+# pool:
+#   use: ubuntu
 
-steps:
-  - name: manifest
-    image: plugins/manifest
-    settings:
-      spec: docker/manifest.tmpl
-      auto_tag: true
-      ignore_missing: true
-      password:
-        from_secret: docker_password
-      username:
-        from_secret: docker_username
+# steps:
+#   - name: manifest
+#     image: plugins/manifest
+#     settings:
+#       spec: docker/manifest.tmpl
+#       auto_tag: true
+#       ignore_missing: true
+#       password:
+#         from_secret: docker_password
+#       username:
+#         from_secret: docker_username
 
-depends_on:
-  - linux-amd64
+# depends_on:
+#   - linux-amd64
 
-trigger:
-  ref:
-    - refs/heads/master
-    - refs/tags/*
+# trigger:
+#   ref:
+#     - refs/heads/master
+#     - refs/tags/*
