@@ -46,6 +46,10 @@ type Args struct {
 	// Deployment environment (optional)
 	EnvironmentName string `envconfig:"PLUGIN_ENVIRONMENT_NAME"`
 
+	EnvironmentId string `envconfig:"PLUGIN_ENVIRONMENT_ID"`
+
+	EnvironmentType string `envconfig:"PLUGIN_ENVIRONMENT_TYPE"`
+
 	// Link to deployment (optional)
 	Link string `envconfig:"PLUGIN_LINK"`
 
@@ -67,47 +71,60 @@ type Args struct {
 
 	// connect hostname (required)
 	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
+	IssueKeys []string `envconfig:"PLUGIN_ISSUEKEYS"`
 }
 
 // Exec executes the plugin.
 func Exec(ctx context.Context, args Args) error {
 	var (
-		environ  = toEnvironment(args)
-		issue    = extractIssue(args)
+		environ         = toEnvironment(args)
+		environmentID   = toEnvironmentId(args)
+		environmentType = toEnvironmentType(args)
+		issue    string
+		issues   []string
 		state    = toState(args)
 		version  = toVersion(args)
 		deeplink = toLink(args)
 	)
 
+	// ExtractInstanceName extracts the instance name from the provided URL if any
+	instanceName := ExtractInstanceName(args.Instance)
+
 	logger := logrus.
 		WithField("client_id", args.ClientID).
 		WithField("cloud_id", args.CloudID).
 		WithField("project_id", args.Project).
-		WithField("instance", args.Instance).
+		WithField("instance", instanceName).
 		WithField("pipeline", args.Name).
 		WithField("environment", environ).
 		WithField("state", state).
-		WithField("version", version)
+		WithField("environment Type", environmentType).
+		WithField("environment ID", environmentID)
 
-	if issue == "" {
-		logger.Debugln("cannot find issue number")
-		return errors.New("failed to extract issue number")
+	if len(args.IssueKeys) > 0 {
+		issues = args.IssueKeys
+	} else {
+		issue = extractIssue(args)
+		if issue == "" {
+			logger.Debugln("cannot find issue number")
+			return errors.New("failed to extract issue number")
+		}
+		logger = logger.WithField("issue", issue)
 	}
 
 	commitMessage := args.Commit.Message
-    	if len(commitMessage) > 255 {
-        	logger.Warnln("Commit message exceeds 255 characters; truncating to fit.")
-        	commitMessage = commitMessage[:252] + "..."
-    	}
+	if len(commitMessage) > 255 {
+		logger.Warnln("Commit message exceeds 255 characters; truncating to fit.")
+		commitMessage = commitMessage[:252] + "..."
+	}
 
-	logger = logger.WithField("issue", issue)
 	logger.Debugln("successfully extraced issue number")
-
 	deploymentPayload := DeploymentPayload{
 		Deployments: []*Deployment{
 			{
 				Deploymentsequencenumber: args.Build.Number,
 				Updatesequencenumber:     args.Build.Number,
+				IssueKeys:                issues,
 				Associations: []Association{
 					{
 						Associationtype: "issueIdOrKeys",
@@ -125,13 +142,23 @@ func Exec(ctx context.Context, args Args) error {
 					URL:         deeplink,
 				},
 				Environment: Environment{
-					ID:          environ,
+					ID:          environmentID,
 					Displayname: environ,
-					Type:        environ,
+					Type:        environmentType,
 				},
 			},
 		},
 	}
+	if len(args.IssueKeys) > 0 {
+		deploymentPayload.Deployments[0].Associations = nil
+	}
+	/*fmt.Println("formatted deploymentPayload JSON data")
+	jsonData, err := json.MarshalIndent(deploymentPayload, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling to JSON:", err)
+	}
+	fmt.Println(string(jsonData))
+	*/
 	buildPayload := BuildPayload{
 		Builds: []*Build{
 			{
@@ -141,13 +168,47 @@ func Exec(ctx context.Context, args Args) error {
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
 				PipelineID:           args.Name,
-				IssueKeys:            []string{issue},
+				IssueKeys:            issues,
 				State:                state,
 				UpdateSequenceNumber: args.Build.Number,
+				References: []struct {
+					Commit struct {
+						ID            string `json:"id"`
+						RepositoryURI string `json:"repositoryUri"`
+					} `json:"commit"`
+					Ref struct {
+						Name string `json:"name"`
+						URI  string `json:"uri"`
+					} `json:"ref"`
+				}{
+					{
+						Commit: struct {
+							ID            string `json:"id"`
+							RepositoryURI string `json:"repositoryUri"`
+						}{
+							ID:            args.Commit.Rev,
+							RepositoryURI: args.Commit.Link,
+						},
+						Ref: struct {
+							Name string `json:"name"`
+							URI  string `json:"uri"`
+						}{
+							Name: args.Commit.Branch,
+							URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch),
+						},
+					},
+				},
 			},
 		},
 	}
-
+	// Print the full data of buildPayload
+	// Marshaling the Build struct into JSON format with indentation
+	/*jsonData1, err1 := json.MarshalIndent(buildPayload, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling to JSON:", err1)
+	}
+	//Printing the formatted JSON data
+	fmt.Println(string(jsonData1))*/
 	// validation of arguments
 	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
@@ -156,7 +217,7 @@ func Exec(ctx context.Context, args Args) error {
 	// create tokens and deployments
 	if args.ClientID != "" && args.ClientSecret != "" {
 		// get cloud id
-		cloudID, err := getCloudID(args.Instance, args.CloudID)
+		cloudID, err := getCloudID(instanceName, args.CloudID)
 		if err != nil {
 			logger.Debugln("cannot get cloud id")
 			return err
@@ -187,7 +248,7 @@ func Exec(ctx context.Context, args Args) error {
 		}
 		if args.EnvironmentName != "" {
 			logger.Infoln("creating deployment")
-			deploymentErr := createConnectDeployment(deploymentPayload, args.Instance, args.Level, jwtToken)
+			deploymentErr := createConnectDeployment(deploymentPayload, instanceName, args.Level, jwtToken)
 			if deploymentErr != nil {
 				logger.WithError(deploymentErr).
 					Errorln("cannot create deployment")
@@ -195,7 +256,7 @@ func Exec(ctx context.Context, args Args) error {
 			}
 		} else {
 			logger.Infoln("creating build")
-			buildErr := createConnectBuild(buildPayload, args.Instance, args.Level, jwtToken)
+			buildErr := createConnectBuild(buildPayload, instanceName, args.Level, jwtToken)
 			if buildErr != nil {
 				logger.WithError(buildErr).
 					Errorln("cannot create build")
@@ -204,15 +265,25 @@ func Exec(ctx context.Context, args Args) error {
 		}
 	}
 	// only create card if the state is successful
-	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
+
+	var ticketLinks []string
+	if len(issues) > 0 && len(args.IssueKeys) > 0 {
+		for _, issue_key := range issues {
+			ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue_key)
+			ticketLinks = append(ticketLinks, ticketLink)
+		}
+	} else {
+		ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
+		ticketLinks = append(ticketLinks, ticketLink)
+	}
 	cardData := Card{
 		Pipeline:    args.Name,
-		Instance:    args.Instance,
+		Instance:    instanceName,
 		Project:     args.Project,
 		State:       state,
 		Version:     version,
 		Environment: environ,
-		URL:         ticketLink,
+		URL:         ticketLinks,
 	}
 	if err := args.writeCard(cardData); err != nil {
 		fmt.Printf("Could not create adaptive card. %s\n", err)
@@ -220,6 +291,24 @@ func Exec(ctx context.Context, args Args) error {
 	}
 	return nil
 }
+
+// TBD(TobeDeleted): Commented as it is not working as expected.
+/*
+func toBranchReference(args Args) []References {
+	return []References{
+		{
+			Commit: Commit{
+				ID:            args.Commit.Rev,
+				RepositoryURI: args.Commit.Link,
+			},
+			Ref: Ref{
+				Name: args.Commit.Branch,                                              // Branch name
+				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch), // Branch URI
+			},
+		},
+	}
+}
+*/
 
 // makes an API call to create a token.
 func getOauthToken(args Args) (string, error) {
@@ -239,6 +328,16 @@ func getOauthToken(args Args) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+/*
+	// Dump the entire HTTP request
+	requestDump, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		fmt.Println("Error dumping request:", err)
+	} else {
+		fmt.Println(string(requestDump))
+	}
+*/
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
@@ -257,6 +356,7 @@ func getOauthToken(args Args) (string, error) {
 	if err != nil {
 		return "", err
 	}
+//	fmt.Println(output["access_token"].(string))
 	return output["access_token"].(string), nil
 }
 
@@ -323,6 +423,16 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
+
+/*	jsonData2, err2 := json.MarshalIndent(res, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling to JSON:", err2)
+	}
+
+	//Printing the formatted JSON data
+	fmt.Println("formatted Build Payload JSON data")
+	fmt.Println(string(jsonData2))*/
+
 	if err != nil {
 		return err
 	}
@@ -357,6 +467,14 @@ func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) e
 	if err != nil {
 		return err
 	}
+/*	jsonData3, err3 := json.MarshalIndent(res, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling to JSON:", err3)
+	}
+
+	//Printing the formatted JSON data
+	fmt.Println("formatted Build Payload JSON data")
+	fmt.Println(string(jsonData3))*/
 	defer res.Body.Close()
 	switch debug {
 	case "debug", "trace", "DEBUG", "TRACE":

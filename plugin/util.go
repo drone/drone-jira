@@ -6,6 +6,7 @@ package plugin
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -45,6 +46,24 @@ func toEnvironment(args Args) string {
 	return "production"
 }
 
+// helper function determines the target environment.
+func toEnvironmentId(args Args) string {
+	if v := args.EnvironmentId; v != "" {
+		return toEnvironmentEnum(v)
+	}
+	// default environment if none specified.
+	return "production"
+}
+
+// helper function determines the target environment.
+func toEnvironmentType(args Args) string {
+	if v := args.EnvironmentType; v != "" {
+		return toEnvironmentEnum(v)
+	}
+	// default environment if none specified.
+	return "production"
+}
+
 // helper function determines the version number.
 func toVersion(args Args) string {
 	if v := args.Semver.Version; v != "" {
@@ -66,6 +85,47 @@ func toLink(args Args) string {
 		return v
 	}
 	return args.Commit.Link
+}
+
+// helper function to return the references
+/*
+func toBranchReference(args Args) []References {
+	return []references{
+		{
+			Commit: Commit{
+				ID:            args.Commit.Rev,
+				RepositoryURI: args.Commit.Link,
+			},
+			Ref: Ref{
+				Name: args.Commit.Branch,                                              // Branch name
+				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch), // Branch URI
+			},
+		},
+	}
+}
+*/
+// helper function ExtractInstanceName extracts the instance name from the provided URL
+// or returns the instance name directly
+func ExtractInstanceName(instance string) string {
+	// Check if the instance is a full URL
+	if strings.Contains(instance, "://") {
+		parsedURL, err := url.Parse(instance)
+		if err == nil {
+			// Return the host part without the top-level domain
+			hostParts := strings.Split(parsedURL.Hostname(), ".")
+			if len(hostParts) > 0 {
+				return hostParts[0] // Return the first part as the instance name
+			}
+		}
+	} else {
+		// If it's not a URL, split by dots to get the instance name
+		hostParts := strings.Split(instance, ".")
+		if len(hostParts) > 0 {
+			return hostParts[0] // Return the first part as the instance name
+		}
+	}
+	// Default return if no valid instance name is found
+	return instance
 }
 
 // helper function normalizes the environment to match

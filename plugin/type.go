@@ -47,22 +47,24 @@ type (
 
 	// Deployment provides the Deployment details.
 	Deployment struct {
-		Deploymentsequencenumber int           `json:"deploymentSequenceNumber"`
-		Updatesequencenumber     int           `json:"updateSequenceNumber"`
-		Associations             []Association `json:"associations"`
-		Displayname              string        `json:"displayName"`
-		URL                      string        `json:"url"`
-		Description              string        `json:"description"`
-		Lastupdated              time.Time     `json:"lastUpdated"`
-		State                    string        `json:"state"`
-		Pipeline                 JiraPipeline  `json:"pipeline"`
-		Environment              Environment   `json:"environment"`
+		Deploymentsequencenumber int `json:"deploymentSequenceNumber"`
+		//IssueKeys                []string      `json:"issueKeys"`
+		IssueKeys            []string      `json:"issueKeys,omitempty"`
+		Updatesequencenumber int           `json:"updateSequenceNumber"`
+		Associations         []Association `json:"associations"`
+		Displayname          string        `json:"displayName"`
+		URL                  string        `json:"url"`
+		Description          string        `json:"description"`
+		Lastupdated          time.Time     `json:"lastUpdated"`
+		State                string        `json:"state"`
+		Pipeline             JiraPipeline  `json:"pipeline"`
+		Environment          Environment   `json:"environment"`
 	}
 
 	// Association provides the association details.
 	Association struct {
-		Associationtype string   `json:"associationType"`
-		Values          []string `json:"values"`
+		Associationtype string   `json:"associationType,omitempty"`
+		Values          []string `json:"values,omitempty"`
 	}
 
 	// Environment provides the environment details.
@@ -86,12 +88,12 @@ type (
 
 	// struct for adaptive card
 	Card struct {
-		Pipeline    string `json:"pipeline"`
-		Instance    string `json:"instance"`
-		Project     string `json:"project"`
-		State       string `json:"state"`
-		Version     string `json:"version"`
-		Environment string `json:"environment"`
-		URL         string `json:"url"`
+		Pipeline    string   `json:"pipeline"`
+		Instance    string   `json:"instance"`
+		Project     string   `json:"project"`
+		State       string   `json:"state"`
+		Version     string   `json:"version"`
+		Environment string   `json:"environment"`
+		URL         []string `json:"url"`
 	}
 )
