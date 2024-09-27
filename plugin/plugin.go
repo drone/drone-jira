@@ -45,9 +45,9 @@ type Args struct {
 
 	// Deployment environment (optional)
 	EnvironmentName string `envconfig:"PLUGIN_ENVIRONMENT_NAME"`
-
+	// Environmnet Id (optional)
 	EnvironmentId string `envconfig:"PLUGIN_ENVIRONMENT_ID"`
-
+	// Environmnet Type (optional)
 	EnvironmentType string `envconfig:"PLUGIN_ENVIRONMENT_TYPE"`
 
 	// Link to deployment (optional)
@@ -71,6 +71,7 @@ type Args struct {
 
 	// connect hostname (required)
 	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
+	// Issue Keys(optional)
 	IssueKeys []string `envconfig:"PLUGIN_ISSUEKEYS"`
 }
 
@@ -80,11 +81,10 @@ func Exec(ctx context.Context, args Args) error {
 		environ         = toEnvironment(args)
 		environmentID   = toEnvironmentId(args)
 		environmentType = toEnvironmentType(args)
-		issue    string
-		issues   []string
-		state    = toState(args)
-		version  = toVersion(args)
-		deeplink = toLink(args)
+		issues          []string
+		state           = toState(args)
+		version         = toVersion(args)
+		deeplink        = toLink(args)
 	)
 
 	// ExtractInstanceName extracts the instance name from the provided URL if any
@@ -101,15 +101,17 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("environment Type", environmentType).
 		WithField("environment ID", environmentID)
 
+	//check if PLUGIN_ISSUEKEYS is provided
 	if len(args.IssueKeys) > 0 {
 		issues = args.IssueKeys
 	} else {
-		issue = extractIssue(args)
+		// fallback to extracting from commit if no issue keys are passed
+		var issue string = extractIssue(args)
 		if issue == "" {
 			logger.Debugln("cannot find issue number")
 			return errors.New("failed to extract issue number")
 		}
-		logger = logger.WithField("issue", issue)
+		issues = []string{issue} // add the single issue here for consistency
 	}
 
 	commitMessage := args.Commit.Message
@@ -128,7 +130,7 @@ func Exec(ctx context.Context, args Args) error {
 				Associations: []Association{
 					{
 						Associationtype: "issueIdOrKeys",
-						Values:          []string{issue},
+						Values:          issues,
 					},
 				},
 				Displayname: strconv.Itoa(args.Build.Number),
@@ -157,8 +159,34 @@ func Exec(ctx context.Context, args Args) error {
 	if err != nil {
 		fmt.Println("Error marshaling to JSON:", err)
 	}
-	fmt.Println(string(jsonData))
-	*/
+	fmt.Println(string(jsonData))*/
+
+	// Initialize an empty reference
+	references := []Reference{}
+	// Check if any input is available to update the reference
+	if args.Commit.Branch != "" || args.Commit.Link != "" || args.Commit.Rev != "" {
+		var reference Reference
+		// Update CommitInfo if Rev or Link is provided
+		if args.Commit.Rev != "" || args.Commit.Link != "" {
+			reference.Commit = &CommitInfo{
+				ID:            args.Commit.Rev,
+				RepositoryURI: args.Commit.Link,
+			}
+		}
+		// Update RefInfo if both Branch and Link are provided
+		if args.Commit.Branch != "" && args.Commit.Link != "" {
+			reference.Ref = &RefInfo{
+				Name: args.Commit.Branch,
+				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch),
+			}
+		}
+
+		// Append the reference if at least one field is populated
+		if reference.Commit != nil || reference.Ref != nil {
+			references = append(references, reference)
+		}
+	}
+	// Build the Build struct and include references only if non-empty
 	buildPayload := BuildPayload{
 		Builds: []*Build{
 			{
@@ -171,33 +199,7 @@ func Exec(ctx context.Context, args Args) error {
 				IssueKeys:            issues,
 				State:                state,
 				UpdateSequenceNumber: args.Build.Number,
-				References: []struct {
-					Commit struct {
-						ID            string `json:"id"`
-						RepositoryURI string `json:"repositoryUri"`
-					} `json:"commit"`
-					Ref struct {
-						Name string `json:"name"`
-						URI  string `json:"uri"`
-					} `json:"ref"`
-				}{
-					{
-						Commit: struct {
-							ID            string `json:"id"`
-							RepositoryURI string `json:"repositoryUri"`
-						}{
-							ID:            args.Commit.Rev,
-							RepositoryURI: args.Commit.Link,
-						},
-						Ref: struct {
-							Name string `json:"name"`
-							URI  string `json:"uri"`
-						}{
-							Name: args.Commit.Branch,
-							URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch),
-						},
-					},
-				},
+				References:           references,
 			},
 		},
 	}
@@ -267,14 +269,12 @@ func Exec(ctx context.Context, args Args) error {
 	// only create card if the state is successful
 
 	var ticketLinks []string
-	if len(issues) > 0 && len(args.IssueKeys) > 0 {
+
+	if len(issues) > 0 {
 		for _, issue_key := range issues {
 			ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue_key)
 			ticketLinks = append(ticketLinks, ticketLink)
 		}
-	} else {
-		ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
-		ticketLinks = append(ticketLinks, ticketLink)
 	}
 	cardData := Card{
 		Pipeline:    args.Name,
@@ -291,24 +291,6 @@ func Exec(ctx context.Context, args Args) error {
 	}
 	return nil
 }
-
-// TBD(TobeDeleted): Commented as it is not working as expected.
-/*
-func toBranchReference(args Args) []References {
-	return []References{
-		{
-			Commit: Commit{
-				ID:            args.Commit.Rev,
-				RepositoryURI: args.Commit.Link,
-			},
-			Ref: Ref{
-				Name: args.Commit.Branch,                                              // Branch name
-				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch), // Branch URI
-			},
-		},
-	}
-}
-*/
 
 // makes an API call to create a token.
 func getOauthToken(args Args) (string, error) {
@@ -328,15 +310,15 @@ func getOauthToken(args Args) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-/*
-	// Dump the entire HTTP request
-	requestDump, err := httputil.DumpRequest(req, true)
-	if err != nil {
-		fmt.Println("Error dumping request:", err)
-	} else {
-		fmt.Println(string(requestDump))
-	}
-*/
+	/*
+		// Dump the entire HTTP request
+		requestDump, err := httputil.DumpRequest(req, true)
+		if err != nil {
+			fmt.Println("Error dumping request:", err)
+		} else {
+			fmt.Println(string(requestDump))
+		}
+	*/
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -356,7 +338,7 @@ func getOauthToken(args Args) (string, error) {
 	if err != nil {
 		return "", err
 	}
-//	fmt.Println(output["access_token"].(string))
+	//	fmt.Println(output["access_token"].(string))
 	return output["access_token"].(string), nil
 }
 
@@ -424,14 +406,14 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 
-/*	jsonData2, err2 := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling to JSON:", err2)
-	}
+	/*	jsonData2, err2 := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			fmt.Println("Error marshaling to JSON:", err2)
+		}
 
-	//Printing the formatted JSON data
-	fmt.Println("formatted Build Payload JSON data")
-	fmt.Println(string(jsonData2))*/
+		//Printing the formatted JSON data
+		fmt.Println("formatted Build Payload JSON data")
+		fmt.Println(string(jsonData2))*/
 
 	if err != nil {
 		return err
@@ -467,14 +449,14 @@ func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) e
 	if err != nil {
 		return err
 	}
-/*	jsonData3, err3 := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling to JSON:", err3)
-	}
+	/*	jsonData3, err3 := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			fmt.Println("Error marshaling to JSON:", err3)
+		}
 
-	//Printing the formatted JSON data
-	fmt.Println("formatted Build Payload JSON data")
-	fmt.Println(string(jsonData3))*/
+		//Printing the formatted JSON data
+		fmt.Println("formatted Build Payload JSON data")
+		fmt.Println(string(jsonData3))*/
 	defer res.Body.Close()
 	switch debug {
 	case "debug", "trace", "DEBUG", "TRACE":

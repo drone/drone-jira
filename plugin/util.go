@@ -6,6 +6,7 @@ package plugin
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -34,7 +35,7 @@ func toState(args Args) string {
 	return toStateEnum(args.Build.Status)
 }
 
-// helper function determines the target environment.
+// helper function determines the target environment Name.
 func toEnvironment(args Args) string {
 	if v := args.EnvironmentName; v != "" {
 		return toEnvironmentEnum(v)
@@ -46,22 +47,22 @@ func toEnvironment(args Args) string {
 	return "production"
 }
 
-// helper function determines the target environment.
+// helper function determines the target environment Id.
 func toEnvironmentId(args Args) string {
 	if v := args.EnvironmentId; v != "" {
-		return toEnvironmentEnum(v)
+		return v
 	}
-	// default environment if none specified.
-	return "production"
+	// Return a default value, such as an empty string
+	return ""
 }
 
-// helper function determines the target environment.
+// helper function determines the target environment Type.
 func toEnvironmentType(args Args) string {
 	if v := args.EnvironmentType; v != "" {
-		return toEnvironmentEnum(v)
+		return v
 	}
-	// default environment if none specified.
-	return "production"
+	// Return a default value, such as an empty string
+	return ""
 }
 
 // helper function determines the version number.
@@ -87,23 +88,6 @@ func toLink(args Args) string {
 	return args.Commit.Link
 }
 
-// helper function to return the references
-/*
-func toBranchReference(args Args) []References {
-	return []references{
-		{
-			Commit: Commit{
-				ID:            args.Commit.Rev,
-				RepositoryURI: args.Commit.Link,
-			},
-			Ref: Ref{
-				Name: args.Commit.Branch,                                              // Branch name
-				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch), // Branch URI
-			},
-		},
-	}
-}
-*/
 // helper function ExtractInstanceName extracts the instance name from the provided URL
 // or returns the instance name directly
 func ExtractInstanceName(instance string) string {
@@ -116,6 +100,9 @@ func ExtractInstanceName(instance string) string {
 			if len(hostParts) > 0 {
 				return hostParts[0] // Return the first part as the instance name
 			}
+		} else {
+			// Log the error if URL parsing fails
+			log.Printf("Error parsing URL '%s': %v", instance, err)
 		}
 	} else {
 		// If it's not a URL, split by dots to get the instance name
