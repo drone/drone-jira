@@ -154,13 +154,6 @@ func Exec(ctx context.Context, args Args) error {
 	if len(args.IssueKeys) > 0 {
 		deploymentPayload.Deployments[0].Associations = nil
 	}
-	/*fmt.Println("formatted deploymentPayload JSON data")
-	jsonData, err := json.MarshalIndent(deploymentPayload, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling to JSON:", err)
-	}
-	fmt.Println(string(jsonData))*/
-
 	// Initialize an empty reference
 	references := []Reference{}
 	// Check if any input is available to update the reference
@@ -203,14 +196,6 @@ func Exec(ctx context.Context, args Args) error {
 			},
 		},
 	}
-	// Print the full data of buildPayload
-	// Marshaling the Build struct into JSON format with indentation
-	/*jsonData1, err1 := json.MarshalIndent(buildPayload, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling to JSON:", err1)
-	}
-	//Printing the formatted JSON data
-	fmt.Println(string(jsonData1))*/
 	// validation of arguments
 	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
@@ -310,16 +295,6 @@ func getOauthToken(args Args) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	/*
-		// Dump the entire HTTP request
-		requestDump, err := httputil.DumpRequest(req, true)
-		if err != nil {
-			fmt.Println("Error dumping request:", err)
-		} else {
-			fmt.Println(string(requestDump))
-		}
-	*/
-
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
@@ -405,16 +380,6 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
-
-	/*	jsonData2, err2 := json.MarshalIndent(res, "", "  ")
-		if err != nil {
-			fmt.Println("Error marshaling to JSON:", err2)
-		}
-
-		//Printing the formatted JSON data
-		fmt.Println("formatted Build Payload JSON data")
-		fmt.Println(string(jsonData2))*/
-
 	if err != nil {
 		return err
 	}
@@ -449,14 +414,6 @@ func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) e
 	if err != nil {
 		return err
 	}
-	/*	jsonData3, err3 := json.MarshalIndent(res, "", "  ")
-		if err != nil {
-			fmt.Println("Error marshaling to JSON:", err3)
-		}
-
-		//Printing the formatted JSON data
-		fmt.Println("formatted Build Payload JSON data")
-		fmt.Println(string(jsonData3))*/
 	defer res.Body.Close()
 	switch debug {
 	case "debug", "trace", "DEBUG", "TRACE":

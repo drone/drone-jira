@@ -6,10 +6,11 @@ package plugin
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // helper function to extract the issue number from
@@ -102,7 +103,7 @@ func ExtractInstanceName(instance string) string {
 			}
 		} else {
 			// Log the error if URL parsing fails
-			log.Printf("Error parsing URL '%s': %v", instance, err)
+			logrus.WithField("instance", instance).WithField("err", err).Error("Error parsing URL")
 		}
 	} else {
 		// If it's not a URL, split by dots to get the instance name
