@@ -151,9 +151,6 @@ func Exec(ctx context.Context, args Args) error {
 			},
 		},
 	}
-	if len(args.IssueKeys) > 0 {
-		deploymentPayload.Deployments[0].Associations = nil
-	}
 	// Initialize an empty reference
 	references := []Reference{}
 	// Check if any input is available to update the reference
