@@ -103,7 +103,7 @@ func ExtractInstanceName(instance string) string {
 			}
 		} else {
 			// Log the error if URL parsing fails
-			logrus.WithField("instance", instance).WithField("err", err).Error("Error parsing URL")
+			logrus.WithField("instance", instance).WithField("error", err).Error("Failed to parse instance URL")
 		}
 	} else {
 		// If it's not a URL, split by dots to get the instance name
