@@ -54,7 +54,7 @@ func toEnvironmentId(args Args) string {
 		return v
 	}
 	// Return a default value, such as an empty string
-	return ""
+	return toEnvironment(args)
 }
 
 // helper function determines the target environment Type.
