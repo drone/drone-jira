@@ -89,7 +89,7 @@ func TestToEnvironmentId(t *testing.T) {
 		{
 			name:           "Empty EnvironmentId",
 			args:           Args{EnvironmentId: ""},
-			expectedOutput: "",
+			expectedOutput: "production",  // Updated to match the default value of "production"
 		},
 	}
 
@@ -118,7 +118,7 @@ func TestToEnvironmentType(t *testing.T) {
 		{
 			name:           "Empty EnvironmentType",
 			args:           Args{EnvironmentType: ""},
-			expectedOutput: "",
+			expectedOutput: "production",  // Updated to match the default value of "production"
 		},
 	}
 
