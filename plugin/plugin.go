@@ -45,6 +45,10 @@ type Args struct {
 
 	// Deployment environment (optional)
 	EnvironmentName string `envconfig:"PLUGIN_ENVIRONMENT_NAME"`
+	// Environmnet Id (optional)
+	EnvironmentId string `envconfig:"PLUGIN_ENVIRONMENT_ID"`
+	// Environmnet Type (optional)
+	EnvironmentType string `envconfig:"PLUGIN_ENVIRONMENT_TYPE"`
 
 	// Link to deployment (optional)
 	Link string `envconfig:"PLUGIN_LINK"`
@@ -67,42 +71,56 @@ type Args struct {
 
 	// connect hostname (required)
 	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
+	// Issue Keys(optional)
+	IssueKeys []string `envconfig:"PLUGIN_ISSUEKEYS"`
 }
 
 // Exec executes the plugin.
 func Exec(ctx context.Context, args Args) error {
 	var (
-		environ  = toEnvironment(args)
-		issue    = extractIssue(args)
-		state    = toState(args)
-		version  = toVersion(args)
-		deeplink = toLink(args)
+		environ         = toEnvironment(args)
+		environmentID   = toEnvironmentId(args)
+		environmentType = toEnvironmentType(args)
+		issues          []string
+		state           = toState(args)
+		version         = toVersion(args)
+		deeplink        = toLink(args)
 	)
+
+	// ExtractInstanceName extracts the instance name from the provided URL if any
+	instanceName := ExtractInstanceName(args.Instance)
 
 	logger := logrus.
 		WithField("client_id", args.ClientID).
 		WithField("cloud_id", args.CloudID).
 		WithField("project_id", args.Project).
-		WithField("instance", args.Instance).
+		WithField("instance", instanceName).
 		WithField("pipeline", args.Name).
 		WithField("environment", environ).
 		WithField("state", state).
-		WithField("version", version)
+		WithField("environment Type", environmentType).
+		WithField("environment ID", environmentID)
 
-	if issue == "" {
-		logger.Debugln("cannot find issue number")
-		return errors.New("failed to extract issue number")
+	//check if PLUGIN_ISSUEKEYS is provided
+	if len(args.IssueKeys) > 0 {
+		issues = args.IssueKeys
+	} else {
+		// fallback to extracting from commit if no issue keys are passed
+		var issue string = extractIssue(args)
+		if issue == "" {
+			logger.Debugln("cannot find issue number")
+			return errors.New("failed to extract issue number")
+		}
+		issues = []string{issue} // add the single issue here for consistency
 	}
 
 	commitMessage := args.Commit.Message
-    	if len(commitMessage) > 255 {
-        	logger.Warnln("Commit message exceeds 255 characters; truncating to fit.")
-        	commitMessage = commitMessage[:252] + "..."
-    	}
+	if len(commitMessage) > 255 {
+		logger.Warnln("Commit message exceeds 255 characters; truncating to fit.")
+		commitMessage = commitMessage[:252] + "..."
+	}
 
-	logger = logger.WithField("issue", issue)
 	logger.Debugln("successfully extraced issue number")
-
 	deploymentPayload := DeploymentPayload{
 		Deployments: []*Deployment{
 			{
@@ -111,7 +129,7 @@ func Exec(ctx context.Context, args Args) error {
 				Associations: []Association{
 					{
 						Associationtype: "issueIdOrKeys",
-						Values:          []string{issue},
+						Values:          issues,
 					},
 				},
 				Displayname: strconv.Itoa(args.Build.Number),
@@ -125,13 +143,39 @@ func Exec(ctx context.Context, args Args) error {
 					URL:         deeplink,
 				},
 				Environment: Environment{
-					ID:          environ,
+					ID:          environmentID,
 					Displayname: environ,
-					Type:        environ,
+					Type:        environmentType,
 				},
 			},
 		},
 	}
+	// Initialize an empty reference
+	references := []Reference{}
+	// Check if any input is available to update the reference
+	if args.Commit.Branch != "" || args.Commit.Link != "" || args.Commit.Rev != "" {
+		var reference Reference
+		// Update CommitInfo if Rev or Link is provided
+		if args.Commit.Rev != "" || args.Commit.Link != "" {
+			reference.Commit = &CommitInfo{
+				ID:            args.Commit.Rev,
+				RepositoryURI: args.Commit.Link,
+			}
+		}
+		// Update RefInfo if both Branch and Link are provided
+		if args.Commit.Branch != "" && args.Commit.Link != "" {
+			reference.Ref = &RefInfo{
+				Name: args.Commit.Branch,
+				URI:  fmt.Sprintf("%s/refs/%s", args.Commit.Link, args.Commit.Branch),
+			}
+		}
+
+		// Append the reference if at least one field is populated
+		if reference.Commit != nil || reference.Ref != nil {
+			references = append(references, reference)
+		}
+	}
+	// Build the Build struct and include references only if non-empty
 	buildPayload := BuildPayload{
 		Builds: []*Build{
 			{
@@ -141,13 +185,13 @@ func Exec(ctx context.Context, args Args) error {
 				URL:                  deeplink,
 				LastUpdated:          time.Now(),
 				PipelineID:           args.Name,
-				IssueKeys:            []string{issue},
+				IssueKeys:            issues,
 				State:                state,
 				UpdateSequenceNumber: args.Build.Number,
+				References:           references,
 			},
 		},
 	}
-
 	// validation of arguments
 	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
@@ -156,7 +200,7 @@ func Exec(ctx context.Context, args Args) error {
 	// create tokens and deployments
 	if args.ClientID != "" && args.ClientSecret != "" {
 		// get cloud id
-		cloudID, err := getCloudID(args.Instance, args.CloudID)
+		cloudID, err := getCloudID(instanceName, args.CloudID)
 		if err != nil {
 			logger.Debugln("cannot get cloud id")
 			return err
@@ -187,7 +231,7 @@ func Exec(ctx context.Context, args Args) error {
 		}
 		if args.EnvironmentName != "" {
 			logger.Infoln("creating deployment")
-			deploymentErr := createConnectDeployment(deploymentPayload, args.Instance, args.Level, jwtToken)
+			deploymentErr := createConnectDeployment(deploymentPayload, instanceName, args.Level, jwtToken)
 			if deploymentErr != nil {
 				logger.WithError(deploymentErr).
 					Errorln("cannot create deployment")
@@ -195,7 +239,7 @@ func Exec(ctx context.Context, args Args) error {
 			}
 		} else {
 			logger.Infoln("creating build")
-			buildErr := createConnectBuild(buildPayload, args.Instance, args.Level, jwtToken)
+			buildErr := createConnectBuild(buildPayload, instanceName, args.Level, jwtToken)
 			if buildErr != nil {
 				logger.WithError(buildErr).
 					Errorln("cannot create build")
@@ -204,15 +248,23 @@ func Exec(ctx context.Context, args Args) error {
 		}
 	}
 	// only create card if the state is successful
-	ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue)
+
+	var ticketLinks []string
+
+	if len(issues) > 0 {
+		for _, issue_key := range issues {
+			ticketLink := fmt.Sprintf("https://%s.atlassian.net/browse/%s", args.Instance, issue_key)
+			ticketLinks = append(ticketLinks, ticketLink)
+		}
+	}
 	cardData := Card{
 		Pipeline:    args.Name,
-		Instance:    args.Instance,
+		Instance:    instanceName,
 		Project:     args.Project,
 		State:       state,
 		Version:     version,
 		Environment: environ,
-		URL:         ticketLink,
+		URL:         ticketLinks,
 	}
 	if err := args.writeCard(cardData); err != nil {
 		fmt.Printf("Could not create adaptive card. %s\n", err)
@@ -257,6 +309,7 @@ func getOauthToken(args Args) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	//	fmt.Println(output["access_token"].(string))
 	return output["access_token"].(string), nil
 }
 

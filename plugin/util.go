@@ -6,8 +6,11 @@ package plugin
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // helper function to extract the issue number from
@@ -33,7 +36,7 @@ func toState(args Args) string {
 	return toStateEnum(args.Build.Status)
 }
 
-// helper function determines the target environment.
+// helper function determines the target environment Name.
 func toEnvironment(args Args) string {
 	if v := args.EnvironmentName; v != "" {
 		return toEnvironmentEnum(v)
@@ -43,6 +46,24 @@ func toEnvironment(args Args) string {
 	}
 	// default environment if none specified.
 	return "production"
+}
+
+// helper function determines the target environment Id.
+func toEnvironmentId(args Args) string {
+	if v := args.EnvironmentId; v != "" {
+		return v
+	}
+	// Return a default value, such as an empty string
+	return toEnvironment(args)
+}
+
+// helper function determines the target environment Type.
+func toEnvironmentType(args Args) string {
+	if v := args.EnvironmentType; v != "" {
+		return v
+	}
+	// Return a default value, such as an empty string
+	return toEnvironment(args)
 }
 
 // helper function determines the version number.
@@ -66,6 +87,33 @@ func toLink(args Args) string {
 		return v
 	}
 	return args.Commit.Link
+}
+
+// helper function ExtractInstanceName extracts the instance name from the provided URL
+// or returns the instance name directly
+func ExtractInstanceName(instance string) string {
+	// Check if the instance is a full URL
+	if strings.Contains(instance, "://") {
+		parsedURL, err := url.Parse(instance)
+		if err == nil {
+			// Return the host part without the top-level domain
+			hostParts := strings.Split(parsedURL.Hostname(), ".")
+			if len(hostParts) > 0 {
+				return hostParts[0] // Return the first part as the instance name
+			}
+		} else {
+			// Log the error if URL parsing fails
+			logrus.WithField("instance", instance).WithField("error", err).Error("Failed to parse instance URL")
+		}
+	} else {
+		// If it's not a URL, split by dots to get the instance name
+		hostParts := strings.Split(instance, ".")
+		if len(hostParts) > 0 {
+			return hostParts[0] // Return the first part as the instance name
+		}
+	}
+	// Default return if no valid instance name is found
+	return instance
 }
 
 // helper function normalizes the environment to match
