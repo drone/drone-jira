@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -73,6 +74,8 @@ type Args struct {
 	ConnectHostname string `envconfig:"PLUGIN_CONNECT_HOSTNAME"`
 	// Issue Keys(optional)
 	IssueKeys []string `envconfig:"PLUGIN_ISSUEKEYS"`
+
+	AdditionalMessage string `envconfig:"PLUGIN_ADDITIONAL_MESSAGE"`
 }
 
 // Exec executes the plugin.
@@ -81,7 +84,7 @@ func Exec(ctx context.Context, args Args) error {
 		environ         = toEnvironment(args)
 		environmentID   = toEnvironmentId(args)
 		environmentType = toEnvironmentType(args)
-		issues          []string
+		issues          = extractIssues(args)
 		state           = toState(args)
 		version         = toVersion(args)
 		deeplink        = toLink(args)
@@ -102,17 +105,24 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("environment ID", environmentID)
 
 	//check if PLUGIN_ISSUEKEYS is provided
-	if len(args.IssueKeys) > 0 {
-		issues = args.IssueKeys
-	} else {
-		// fallback to extracting from commit if no issue keys are passed
-		var issue string = extractIssue(args)
-		if issue == "" {
-			logger.Debugln("cannot find issue number")
-			return errors.New("failed to extract issue number")
-		}
-		issues = []string{issue} // add the single issue here for consistency
+	// if len(args.IssueKeys) > 0 {
+	// 	issues = args.IssueKeys
+	// } else {
+	// 	// fallback to extracting from commit if no issue keys are passed
+	// 	var issue string = extractIssues(args)
+	// 	if issue == "" {
+	// 		logger.Debugln("cannot find issue number")
+	// 		return errors.New("failed to extract issue number")
+	// 	}
+	// 	issues = []string{issue} // add the single issue here for consistency
+	// }
+	if len(issues) == 0 {
+		logger.Debugln("cannot find issues")
+		return errors.New("failed to extract issues")
 	}
+	issues = removeDuplicates(issues)
+	logger = logger.WithField("issues", strings.Join(issues, ","))
+	logger.Debugln("successfully extracted all issues")
 
 	commitMessage := args.Commit.Message
 	if len(commitMessage) > 255 {
@@ -195,7 +205,7 @@ func Exec(ctx context.Context, args Args) error {
 	// validation of arguments
 	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
-		return errors.New("No client id & secret or connect token & hostname provided")
+		return errors.New("no client id & secret or connect token & hostname provided")
 	}
 	// create tokens and deployments
 	if args.ClientID != "" && args.ClientSecret != "" {
@@ -302,7 +312,7 @@ func getOauthToken(args Args) (string, error) {
 		return "", err
 	}
 	if res.StatusCode > 299 {
-		return "", fmt.Errorf("Error code %d", res.StatusCode)
+		return "", fmt.Errorf("error code %d", res.StatusCode)
 	}
 	output := map[string]interface{}{}
 	err = json.Unmarshal(out, &output)
@@ -356,7 +366,7 @@ func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken stri
 		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
 	}
 	if res.StatusCode > 299 {
-		return fmt.Errorf("Error code %d", res.StatusCode)
+		return fmt.Errorf("error code %d", res.StatusCode)
 	}
 	return nil
 }
@@ -387,7 +397,7 @@ func createConnectDeployment(payload DeploymentPayload, cloudID, debug, jwtToken
 		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
 	}
 	if res.StatusCode > 299 {
-		return fmt.Errorf("Error code %d", res.StatusCode)
+		return fmt.Errorf("error code %d", res.StatusCode)
 	}
 	return nil
 }
@@ -418,7 +428,7 @@ func createConnectBuild(payload BuildPayload, cloudID, debug, jwtToken string) e
 		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
 	}
 	if res.StatusCode > 299 {
-		return fmt.Errorf("Error code %d", res.StatusCode)
+		return fmt.Errorf("error code %d", res.StatusCode)
 	}
 	return nil
 }
@@ -428,7 +438,7 @@ func getCloudID(instance, cloudID string) (string, error) {
 
 		tenant, err := lookupTenant(instance)
 		if err != nil {
-			return "", fmt.Errorf("Cannot get cloudid from instance, %s", err)
+			return "", fmt.Errorf("cannot get cloudid from instance, %s", err)
 		}
 		return tenant.ID, nil
 	}
@@ -447,9 +457,27 @@ func lookupTenant(tenant string) (*Tenant, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode > 299 {
-		return nil, fmt.Errorf("Error code %d", res.StatusCode)
+		return nil, fmt.Errorf("error code %d", res.StatusCode)
 	}
 	out := new(Tenant)
 	err = json.NewDecoder(res.Body).Decode(out)
 	return out, err
 }
+
+func removeDuplicates(list []string) []string {
+	// Create an empty map to store seen elements
+	seen := make(map[string]bool)
+
+	// Initialize a new list to store unique elements
+	uniqueList := []string{}
+
+	for _, element := range list {
+	  // Check if the element is already seen
+	  if !seen[element] {
+		seen[element] = true
+		uniqueList = append(uniqueList, element)
+	  }
+	}
+
+	return uniqueList
+  }

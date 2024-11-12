@@ -6,44 +6,91 @@ package plugin
 
 import "testing"
 
-func TestExtractIssue(t *testing.T) {
-	tests := []struct {
-		text string
-		want string
-	}{
-		{
-			text: "TEST-1 this is a test",
-			want: "TEST-1",
-		},
-		{
-			text: "suffix [TEST-123]",
-			want: "TEST-123",
-		},
-		{
-			text: "[TEST-123] prefix",
-			want: "TEST-123",
-		},
-		{
-			text: "TEST-123 prefix",
-			want: "TEST-123",
-		},
-		{
-			text: "feature/TEST-123",
-			want: "TEST-123",
-		},
-		{
-			text: "no issue",
-			want: "",
-		},
-	}
-	for _, test := range tests {
-		var args Args
-		args.Commit.Message = test.text
-		args.Project = "TEST"
-		if got, want := extractIssue(args), test.want; got != want {
-			t.Errorf("Got issue number %v, want %v", got, want)
-		}
-	}
+// compareSlices checks if s2 is a subset of s1
+func compareSlices(s1, s2 []string) bool {
+    // Special case: if both slices are empty, they're equal
+    if len(s1) == 0 && len(s2) == 0 {
+        return true
+    }
+    
+    // If s2 is empty but s1 isn't, or s1 is shorter than s2, they can't match
+    if len(s2) == 0 || len(s1) < len(s2) {
+        return false
+    }
+
+    // For each possible starting position in s1
+    for i := 0; i <= len(s1)-len(s2); i++ {
+        allMatch := true
+        // Try to match all elements of s2 starting at position i
+        for j := 0; j < len(s2); j++ {
+            if s1[i+j] != s2[j] {
+                allMatch = false
+                break
+            }
+        }
+        if allMatch {
+            return true
+        }
+    }
+    return false
+}
+
+func TestExtractIssues(t *testing.T) {
+    tests := []struct {
+        name string
+        text string
+        want []string
+    }{
+        {
+            name: "Single issue",
+            text: "TEST-1 this is a test",
+            want: []string{"TEST-1"},
+        },
+        {
+            name: "Two issues in brackets",
+            text: "suffix [TEST-123] [TEST-234]",
+            want: []string{"TEST-123", "TEST-234"},
+        },
+        {
+            name: "Two issues, one in prefix",
+            text: "[TEST-123] prefix [TEST-456]",
+            want: []string{"TEST-123"},
+        },
+        {
+            name: "Multiple comma-separated issues",
+            text: "Multiple issues: TEST-123, TEST-234, TEST-456",
+            want: []string{"TEST-123", "TEST-234", "TEST-456"},
+        },
+        {
+            name: "Mixed format issues",
+            text: "feature/TEST-123 [TEST-456] and [TEST-789]",
+            want: []string{"TEST-123", "TEST-456", "TEST-789"},
+        },
+        {
+            name: "Space-separated issues",
+            text: "TEST-123 TEST-456 TEST-789",
+            want: []string{"TEST-123", "TEST-456", "TEST-789"},
+        },
+        {
+            name: "No issues",
+            text: "no issue",
+            want: []string{},
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            var args Args
+            args.Commit.Message = tt.text
+            args.Project = "TEST"
+            
+            got := extractIssues(args)
+            
+            if !compareSlices(got, tt.want) {
+                t.Errorf("\ngot:  %v\nwant: %v", got, tt.want)
+            }
+        })
+    }
 }
 
 func TestExtractInstanceName(t *testing.T) {

@@ -16,16 +16,19 @@ import (
 // helper function to extract the issue number from
 // the commit details, including the commit message,
 // branch and pull request title.
-func extractIssue(args Args) string {
-	return regexp.MustCompile(args.Project + "\\-\\d+").FindString(
-		fmt.Sprintln(
-			args.Commit.Message,
-			args.PullRequest.Title,
-			args.Commit.Source,
-			args.Commit.Target,
-			args.Commit.Branch,
-		),
-	)
+func extractIssues(args Args) []string {
+
+    regex := regexp.MustCompile(args.Project+"-\\d+")
+    matches := regex.FindAllString(fmt.Sprintln(
+		args.AdditionalMessage,
+        args.Commit.Message,
+        args.PullRequest.Title,
+        args.Commit.Source,
+        args.Commit.Target,
+        args.Commit.Branch,
+    	), -1)
+
+    return matches
 }
 
 // helper function determines the pipeline state.
