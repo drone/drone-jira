@@ -18,17 +18,16 @@ import (
 // branch and pull request title.
 func extractIssues(args Args) []string {
 
-    regex := regexp.MustCompile(args.Project+"-\\d+")
-    matches := regex.FindAllString(fmt.Sprintln(
-		args.AdditionalMessage,
-        args.Commit.Message,
-        args.PullRequest.Title,
-        args.Commit.Source,
-        args.Commit.Target,
-        args.Commit.Branch,
-    	), -1)
+	regex := regexp.MustCompile(args.Project + "\\-\\d+")
+	matches := regex.FindAllString(fmt.Sprintln(
+		args.Commit.Message,
+		args.PullRequest.Title,
+		args.Commit.Source,
+		args.Commit.Target,
+		args.Commit.Branch,
+	), -1)
 
-    return matches
+	return removeDuplicates(matches)
 }
 
 // helper function determines the pipeline state.
@@ -155,4 +154,22 @@ func toStateEnum(s string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func removeDuplicates(list []string) []string {
+	// Create an empty map to store seen elements
+	seen := make(map[string]bool)
+
+	// Initialize a new list to store unique elements
+	uniqueList := []string{}
+
+	for _, element := range list {
+		// Check if the element is already seen
+		if !seen[element] {
+			seen[element] = true
+			uniqueList = append(uniqueList, element)
+		}
+	}
+
+	return uniqueList
 }
