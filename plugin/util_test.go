@@ -54,7 +54,7 @@ func TestExtractIssues(t *testing.T) {
 		{
 			name: "Two issues, one in prefix",
 			text: "[TEST-123] prefix [TEST-456]",
-			want: []string{"TEST-123"},
+			want: []string{"TEST-123", "TEST-456"},
 		},
 		{
 			name: "Multiple comma-separated issues",
@@ -87,7 +87,11 @@ func TestExtractIssues(t *testing.T) {
 			got := extractIssues(args)
 
 			if !compareSlices(got, tt.want) {
-				t.Errorf("\ngot:  %v\nwant: %v", got, tt.want)
+				t.Logf("\n Test case '%s' FAILED", tt.name)
+				t.Errorf("\ngot: %v\nwant: %v", got, tt.want)
+			} else {
+				t.Logf("\n Test case '%s' PASSED", tt.name)
+				t.Logf("\ngot: %v\nwant: %v", got, tt.want)
 			}
 		})
 	}
