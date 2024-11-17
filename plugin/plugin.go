@@ -450,7 +450,7 @@ func lookupTenant(tenant string) (*Tenant, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode > 299 {
-		return nil, fmt.Errorf("errorCode %d", res.StatusCode)
+		return nil, fmt.Errorf("Error code %d", res.StatusCode)
 	}
 	out := new(Tenant)
 	err = json.NewDecoder(res.Body).Decode(out)
