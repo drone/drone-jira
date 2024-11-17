@@ -359,7 +359,7 @@ func createDeployment(payload DeploymentPayload, cloudID, debug, oauthToken stri
 		logrus.WithField("status", res.Status).WithField("response", outString).Info("request complete")
 	}
 	if res.StatusCode > 299 {
-		return fmt.Errorf("errorCode %d", res.StatusCode)
+		return fmt.Errorf("Error code %d", res.StatusCode)
 	}
 	return nil
 }
