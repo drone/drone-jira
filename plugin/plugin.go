@@ -436,7 +436,7 @@ func getCloudID(instance, cloudID string) (string, error) {
 		return tenant.ID, nil
 	}
 	if cloudID == "" {
-		return "", fmt.Errorf("cloudIdIsEmptySpecifyTheCloudIdOrInstanceName")
+		return "", fmt.Errorf("Cloud id is empty. Specify the cloud id or instance name")
 	}
 	return cloudID, nil
 }
