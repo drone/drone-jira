@@ -305,7 +305,7 @@ func getOauthToken(args Args) (string, error) {
 		return "", err
 	}
 	if res.StatusCode > 299 {
-		return "", fmt.Errorf("errorCode %d", res.StatusCode)
+		return "", fmt.Errorf("Error code %d", res.StatusCode)
 	}
 	output := map[string]interface{}{}
 	err = json.Unmarshal(out, &output)
