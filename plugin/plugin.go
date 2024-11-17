@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -101,18 +102,20 @@ func Exec(ctx context.Context, args Args) error {
 		WithField("environment Type", environmentType).
 		WithField("environment ID", environmentID)
 
-	//check if PLUGIN_ISSUEKEYS is provided
+	// check if PLUGIN_ISSUEKEYS is provided
 	if len(args.IssueKeys) > 0 {
+		logger.Debugln("Provided issue keys are :", args.IssueKeys)
 		issues = args.IssueKeys
 	} else {
 		// fallback to extracting from commit if no issue keys are passed
-		var issue string = extractIssue(args)
-		if issue == "" {
+		issues = extractIssues(args)
+		if len(issues) == 0 {
 			logger.Debugln("cannot find issue number")
 			return errors.New("failed to extract issue number")
 		}
-		issues = []string{issue} // add the single issue here for consistency
 	}
+	logger = logger.WithField("issues", strings.Join(issues, ","))
+	logger.Debugln("successfully extracted all issues")
 
 	commitMessage := args.Commit.Message
 	if len(commitMessage) > 255 {
@@ -433,7 +436,7 @@ func getCloudID(instance, cloudID string) (string, error) {
 		return tenant.ID, nil
 	}
 	if cloudID == "" {
-		return "", fmt.Errorf("cloud id is empty. specify the cloud id or instance name")
+		return "", fmt.Errorf("Cloud id is empty. Specify the cloud id or instance name")
 	}
 	return cloudID, nil
 }
