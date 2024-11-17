@@ -198,7 +198,7 @@ func Exec(ctx context.Context, args Args) error {
 	// validation of arguments
 	if (args.ClientID == "" && args.ClientSecret == "") && (args.ConnnectKey == "") {
 		logger.Debugln("client id and secret are empty. specify the client id and secret or specify connect key")
-		return errors.New("noClientIdAndSecretOrConnectTokenAndHostnameProvided")
+		return errors.New("No client id & secret or connect token & hostname provided")
 	}
 	// create tokens and deployments
 	if args.ClientID != "" && args.ClientSecret != "" {
