@@ -431,7 +431,7 @@ func getCloudID(instance, cloudID string) (string, error) {
 
 		tenant, err := lookupTenant(instance)
 		if err != nil {
-			return "", fmt.Errorf("cannotGetCloudIdFromInstance, %s", err)
+			return "", fmt.Errorf("Cannot get cloudid from instance, %s", err)
 		}
 		return tenant.ID, nil
 	}
